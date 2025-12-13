@@ -7106,9 +7106,9 @@ CreateNotification(
     7
 )
 
-print("=" :rep(50))
+print(("="):rep(50))
 print("⚡☠️ MORTAL ANIMATOR V1 - CARREGAMENTO COMPLETO ☠️⚡")
-print("=" :rep(50))
+print(("="):rep(50))
 print("✅ Partes carregadas: 15/15")
 print("✅ Interface: OK")
 print("✅ Keyframes: OK")
@@ -7118,8 +7118,7 @@ print("✅ IK System: OK")
 print("✅ Easing: OK")
 print("✅ Export: OK")
 print("✅ Poses: OK")
-print("=" :rep(50))
+print(("="):rep(50))
 print("Desenvolvido para Studio Lite + Delta Executor")
 print("Mobile e PC compatível!")
-print("=" :rep(50))
-
+print(("="):rep(50))
