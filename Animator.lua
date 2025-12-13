@@ -1,4 +1,4 @@
---[[
+--[[ 
     ⚡☠️ MORTAL PLUGINS V1 ☠️⚡
     PARTE 1: Menu Principal + Sistema de Notificações
     Compatível com: Delta Executor, Mobile e PC
