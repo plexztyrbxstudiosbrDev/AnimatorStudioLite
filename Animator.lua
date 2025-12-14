@@ -1228,6 +1228,567 @@ _G.AnimatorTimeline = timelineFrame
 print("⚡ Mortal Animator - Parte 2 Carregada (Timeline)")
 
 -- ⚡☠️ MORTAL ANIMATOR V1 ☠️⚡
+-- Parte 3/3 - Funções Avançadas, Cutscene e Export
+-- Para Studio Lite + Delta Executor
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Selection = game:GetService("Selection")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local AnimatorGui = playerGui:WaitForChild("MortalAnimatorGUI")
+local mainFrame = _G.AnimatorMainFrame
+local AnimatorData = _G.AnimatorData
+local KeyframeSystem = _G.KeyframeSystem
+local PlaybackSystem = _G.PlaybackSystem
+local bonesScroll = _G.AnimatorBonesScroll
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local Colors = _G.MortalColors or {
+    Background = Color3.fromRGB(15, 15, 20),
+    Secondary = Color3.fromRGB(25, 25, 35),
+    Tertiary = Color3.fromRGB(35, 35, 45),
+    Accent = Color3.fromRGB(138, 43, 226),
+    AccentLight = Color3.fromRGB(180, 80, 255),
+    Success = Color3.fromRGB(0, 255, 127),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextDark = Color3.fromRGB(180, 180, 180),
+    Red = Color3.fromRGB(255, 50, 80),
+    Gold = Color3.fromRGB(255, 215, 0),
+    Green = Color3.fromRGB(50, 205, 50),
+    Blue = Color3.fromRGB(30, 144, 255)
+}
+
+local function CreateCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+local function CreateGradient(parent, color1, color2, rotation)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color1),
+        ColorSequenceKeypoint.new(1, color2)
+    })
+    gradient.Rotation = rotation or 45
+    gradient.Parent = parent
+    return gradient
+end
+
+-- Painel de Ações (lado direito)
+local actionsPanel = Instance.new("Frame")
+actionsPanel.Name = "ActionsPanel"
+actionsPanel.Size = UDim2.new(0, isMobile and 80 or 150, 0, isMobile and 200 or 250)
+actionsPanel.Position = UDim2.new(1, isMobile and -90 or -160, 0, 115)
+actionsPanel.BackgroundColor3 = Colors.Secondary
+actionsPanel.BorderSizePixel = 0
+actionsPanel.ZIndex = 21
+actionsPanel.Parent = mainFrame
+CreateCorner(actionsPanel, 10)
+
+local actionsTitle = Instance.new("TextLabel")
+actionsTitle.Size = UDim2.new(1, 0, 0, 25)
+actionsTitle.BackgroundColor3 = Colors.Tertiary
+actionsTitle.Text = "⚡ Ações"
+actionsTitle.TextColor3 = Colors.Text
+actionsTitle.TextSize = 11
+actionsTitle.Font = Enum.Font.GothamBold
+actionsTitle.ZIndex = 22
+actionsTitle.Parent = actionsPanel
+CreateCorner(actionsTitle, 10)
+
+-- Botões de ação
+local actionButtons = {
+    {name = "Selecionar", icon = "🎯", color = Colors.Accent},
+    {name = "Add Key", icon = "🔑", color = Colors.Green},
+    {name = "Del Key", icon = "🗑️", color = Colors.Red},
+    {name = "Cutscene", icon = "🎬", color = Colors.Gold},
+    {name = "Export", icon = "💾", color = Colors.Blue},
+    {name = "Importar", icon = "📂", color = Colors.Accent},
+}
+
+local actionsScroll = Instance.new("ScrollingFrame")
+actionsScroll.Size = UDim2.new(1, -10, 1, -35)
+actionsScroll.Position = UDim2.new(0, 5, 0, 30)
+actionsScroll.BackgroundTransparency = 1
+actionsScroll.ScrollBarThickness = 2
+actionsScroll.ZIndex = 22
+actionsScroll.CanvasSize = UDim2.new(0, 0, 0, #actionButtons * 40)
+actionsScroll.Parent = actionsPanel
+
+local actionsLayout = Instance.new("UIListLayout")
+actionsLayout.Padding = UDim.new(0, 5)
+actionsLayout.Parent = actionsScroll
+
+for _, action in ipairs(actionButtons) do
+    local btn = Instance.new("TextButton")
+    btn.Name = action.name
+    btn.Size = UDim2.new(1, 0, 0, 35)
+    btn.BackgroundColor3 = action.color
+    btn.Text = action.icon .. " " .. (isMobile and "" or action.name)
+    btn.TextColor3 = Colors.Text
+    btn.TextSize = isMobile and 16 or 12
+    btn.Font = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 23
+    btn.Parent = actionsScroll
+    CreateCorner(btn, 8)
+end
+
+-- Sistema de seleção de objetos
+local SelectionSystem = {}
+SelectionSystem.SelectedObject = nil
+SelectionSystem.SelectedParts = {}
+
+function SelectionSystem:SelectObject(object)
+    self.SelectedObject = object
+    AnimatorData.SelectedObject = object
+    
+    -- Limpar hierarquia
+    for _, child in ipairs(bonesScroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    -- Preencher hierarquia
+    if object then
+        local function AddToHierarchy(part, indent)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -5, 0, 22)
+            btn.BackgroundColor3 = Colors.Tertiary
+            btn.Text = string.rep("  ", indent) .. "▸ " .. part.Name
+            btn.TextColor3 = Colors.Text
+            btn.TextSize = 10
+            btn.Font = Enum.Font.Gotham
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.BorderSizePixel = 0
+            btn.ZIndex = 23
+            btn.Parent = bonesScroll
+            CreateCorner(btn, 4)
+            
+            btn.MouseButton1Click:Connect(function()
+                self:SelectPart(part)
+                -- Destacar botão selecionado
+                for _, c in ipairs(bonesScroll:GetChildren()) do
+                    if c:IsA("TextButton") then
+                        c.BackgroundColor3 = Colors.Tertiary
+                    end
+                end
+                btn.BackgroundColor3 = Colors.Accent
+            end)
+            
+            -- Criar track na timeline
+            if part:IsA("BasePart") or part:IsA("Model") then
+                KeyframeSystem:CreateTrack(part.Name, part)
+            end
+        end
+        
+        -- Adicionar objeto principal
+        AddToHierarchy(object, 0)
+        
+        -- Adicionar descendentes
+        local function ProcessDescendants(parent, indent)
+            for _, child in ipairs(parent:GetChildren()) do
+                if child:IsA("BasePart") or child:IsA("Motor6D") or child:IsA("Bone") then
+                    AddToHierarchy(child, indent)
+                end
+                ProcessDescendants(child, indent + 1)
+            end
+        end
+        
+        ProcessDescendants(object, 1)
+    end
+    
+    -- Atualizar canvas size
+    local layout = bonesScroll:FindFirstChild("UIListLayout")
+    if layout then
+        bonesScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+    end
+end
+
+function SelectionSystem:SelectPart(part)
+    table.insert(self.SelectedParts, part)
+    
+    -- Visual feedback
+    if part:IsA("BasePart") then
+        local highlight = Instance.new("SelectionBox")
+        highlight.Name = "AnimatorSelection"
+        highlight.Adornee = part
+        highlight.Color3 = Colors.Accent
+        highlight.LineThickness = 0.03
+        highlight.Parent = part
+        
+        task.delay(0.5, function()
+            if highlight then highlight:Destroy() end
+        end)
+    end
+end
+
+-- Botão Selecionar Objeto
+local selectBtn = actionsScroll:FindFirstChild("Selecionar")
+if selectBtn then
+    selectBtn.MouseButton1Click:Connect(function()
+        -- Usar seleção do Studio Lite
+        local selected = Selection:Get()
+        if #selected > 0 then
+            SelectionSystem:SelectObject(selected[1])
+            if _G.ShowMortalNotification then
+                _G.ShowMortalNotification("✅ Objeto Selecionado", selected[1].Name, 2)
+            end
+        else
+            if _G.ShowMortalNotification then
+                _G.ShowMortalNotification("⚠️ Aviso", "Selecione um objeto no Explorer primeiro!", 3)
+            end
+        end
+    end)
+end
+
+-- Botão Adicionar Keyframe
+local addKeyBtn = actionsScroll:FindFirstChild("Add Key")
+if addKeyBtn then
+    addKeyBtn.MouseButton1Click:Connect(function()
+        local currentFrame = math.floor(PlaybackSystem.CurrentFrame)
+        
+        for _, part in ipairs(SelectionSystem.SelectedParts) do
+            if part:IsA("BasePart") then
+                local data = {
+                    CFrame = part.CFrame,
+                    Size = part.Size,
+                    Transparency = part.Transparency
+                }
+                KeyframeSystem:AddKeyframe(part.Name, currentFrame, data)
+            end
+        end
+        
+        if _G.ShowMortalNotification then
+            _G.ShowMortalNotification("🔑 Keyframe Adicionado", "Frame: " .. currentFrame, 2)
+        end
+    end)
+end
+
+-- Botão Deletar Keyframe
+local delKeyBtn = actionsScroll:FindFirstChild("Del Key")
+if delKeyBtn then
+    delKeyBtn.MouseButton1Click:Connect(function()
+        local currentFrame = math.floor(PlaybackSystem.CurrentFrame)
+        
+        for _, part in ipairs(SelectionSystem.SelectedParts) do
+            KeyframeSystem:RemoveKeyframe(part.Name, currentFrame)
+        end
+        
+        if _G.ShowMortalNotification then
+            _G.ShowMortalNotification("🗑️ Keyframe Removido", "Frame: " .. currentFrame, 2)
+        end
+    end)
+end
+
+-- Sistema de Export
+local ExportSystem = {}
+
+function ExportSystem:GenerateCode()
+    local code = [[
+-- ⚡☠️ MORTAL ANIMATOR - Animação Exportada ☠️⚡
+-- Gerado automaticamente pelo Mortal Animator V1
+
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local AnimationData = {
+    FPS = ]] .. AnimatorData.FPS .. [[,
+    TotalFrames = ]] .. AnimatorData.TotalFrames .. [[,
+    Tracks = {
+]]
+    
+    for trackName, track in pairs(KeyframeSystem.Tracks) do
+        code = code .. "        [\"" .. trackName .. "\"] = {\n"
+        code = code .. "            Keyframes = {\n"
+        
+        for frame, keyframeData in pairs(track.Keyframes) do
+            local data = keyframeData.Data
+            if data.CFrame then
+                local cf = data.CFrame
+                code = code .. string.format(
+                    "                [%d] = {CFrame = CFrame.new(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)},\n",
+                    frame,
+                    cf.X, cf.Y, cf.Z,
+                    cf:GetComponents()
+                )
+            end
+        end
+        
+        code = code .. "            }\n"
+        code = code .. "        },\n"
+    end
+    
+    code = code .. [[
+    }
+}
+
+-- Função para reproduzir animação
+local function PlayAnimation(targetObject)
+    local connection
+    local currentFrame = 0
+    
+    connection = RunService.Heartbeat:Connect(function(dt)
+        currentFrame = currentFrame + (AnimationData.FPS * dt)
+        
+        if currentFrame >= AnimationData.TotalFrames then
+            connection:Disconnect()
+            return
+        end
+        
+        -- Aplicar transformações
+        for trackName, trackData in pairs(AnimationData.Tracks) do
+            local part = targetObject:FindFirstChild(trackName, true)
+            if part then
+                -- Interpolação entre keyframes
+                local prevFrame, nextFrame = nil, nil
+                local prevData, nextData = nil, nil
+                
+                for kf, data in pairs(trackData.Keyframes) do
+                    if kf <= currentFrame and (not prevFrame or kf > prevFrame) then
+                        prevFrame = kf
+                        prevData = data
+                    end
+                    if kf > currentFrame and (not nextFrame or kf < nextFrame) then
+                        nextFrame = kf
+                        nextData = data
+                    end
+                end
+                
+                if prevData and nextData and prevFrame and nextFrame then
+                    local alpha = (currentFrame - prevFrame) / (nextFrame - prevFrame)
+                    if prevData.CFrame and nextData.CFrame then
+                        part.CFrame = prevData.CFrame:Lerp(nextData.CFrame, alpha)
+                    end
+                elseif prevData and prevData.CFrame then
+                    part.CFrame = prevData.CFrame
+                end
+            end
+        end
+    end)
+    
+    return connection
+end
+
+return PlayAnimation
+]]
+    
+    return code
+end
+
+function ExportSystem:ShowExportDialog()
+    local exportFrame = Instance.new("Frame")
+    exportFrame.Name = "ExportDialog"
+    exportFrame.Size = UDim2.new(0, isMobile and 320 or 500, 0, isMobile and 400 or 450)
+    exportFrame.Position = UDim2.new(0.5, isMobile and -160 or -250, 0.5, isMobile and -200 or -225)
+    exportFrame.BackgroundColor3 = Colors.Background
+    exportFrame.BorderSizePixel = 0
+    exportFrame.ZIndex = 40
+    exportFrame.Parent = AnimatorGui
+    CreateCorner(exportFrame, 16)
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Colors.Gold
+    stroke.Thickness = 2
+    stroke.Parent = exportFrame
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.BackgroundColor3 = Colors.Secondary
+    title.Text = "💾 EXPORTAR ANIMAÇÃO"
+    title.TextColor3 = Colors.Gold
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBlack
+    title.ZIndex = 41
+    title.Parent = exportFrame
+    CreateCorner(title, 16)
+    
+    local closeExport = Instance.new("TextButton")
+    closeExport.Size = UDim2.new(0, 30, 0, 30)
+    closeExport.Position = UDim2.new(1, -35, 0, 5)
+    closeExport.BackgroundColor3 = Colors.Red
+    closeExport.Text = "✕"
+    closeExport.TextColor3 = Colors.Text
+    closeExport.TextSize = 14
+    closeExport.Font = Enum.Font.GothamBold
+    closeExport.BorderSizePixel = 0
+    closeExport.ZIndex = 42
+    closeExport.Parent = exportFrame
+    CreateCorner(closeExport, 8)
+    
+    closeExport.MouseButton1Click:Connect(function()
+        TweenService:Create(exportFrame, TweenInfo.new(0.3), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+        task.wait(0.3)
+        exportFrame:Destroy()
+    end)
+    
+    local description = Instance.new("TextLabel")
+    description.Size = UDim2.new(1, -20, 0, 40)
+    description.Position = UDim2.new(0, 10, 0, 45)
+    description.BackgroundTransparency = 1
+    description.Text = "Copie o código abaixo e cole em um LocalScript/Script"
+    description.TextColor3 = Colors.TextDark
+    description.TextSize = 12
+    description.Font = Enum.Font.Gotham
+    description.TextWrapped = true
+    description.ZIndex = 41
+    description.Parent = exportFrame
+    
+    local codeBox = Instance.new("ScrollingFrame")
+    codeBox.Size = UDim2.new(1, -20, 1, -140)
+    codeBox.Position = UDim2.new(0, 10, 0, 90)
+    codeBox.BackgroundColor3 = Colors.Tertiary
+    codeBox.BorderSizePixel = 0
+    codeBox.ScrollBarThickness = 4
+    codeBox.ZIndex = 41
+    codeBox.Parent = exportFrame
+    CreateCorner(codeBox, 8)
+    
+    local codeText = Instance.new("TextBox")
+    codeText.Size = UDim2.new(1, -10, 0, 2000)
+    codeText.Position = UDim2.new(0, 5, 0, 5)
+    codeText.BackgroundTransparency = 1
+    codeText.Text = self:GenerateCode()
+    codeText.TextColor3 = Colors.Green
+    codeText.TextSize = 10
+    codeText.Font = Enum.Font.Code
+    codeText.TextXAlignment = Enum.TextXAlignment.Left
+    codeText.TextYAlignment = Enum.TextYAlignment.Top
+    codeText.TextWrapped = true
+    codeText.ClearTextOnFocus = false
+    codeText.ZIndex = 42
+    codeText.Parent = codeBox
+    
+    local copyBtn = Instance.new("TextButton")
+    copyBtn.Size = UDim2.new(1, -20, 0, 35)
+    copyBtn.Position = UDim2.new(0, 10, 1, -45)
+    copyBtn.BackgroundColor3 = Colors.Green
+    copyBtn.Text = "📋 COPIAR CÓDIGO"
+    copyBtn.TextColor3 = Colors.Text
+    copyBtn.TextSize = 14
+    copyBtn.Font = Enum.Font.GothamBold
+    copyBtn.BorderSizePixel = 0
+    copyBtn.ZIndex = 41
+    copyBtn.Parent = exportFrame
+    CreateCorner(copyBtn, 8)
+    
+    copyBtn.MouseButton1Click:Connect(function()
+        if setclipboard then
+            setclipboard(codeText.Text)
+            if _G.ShowMortalNotification then
+                _G.ShowMortalNotification("✅ Copiado!", "Código copiado para a área de transferência", 2)
+            end
+        else
+            codeText:CaptureFocus()
+            if _G.ShowMortalNotification then
+                _G.ShowMortalNotification("📋 Selecione", "Selecione e copie manualmente (Ctrl+C)", 3)
+            end
+        end
+    end)
+    
+    -- Animação de entrada
+    exportFrame.Size = UDim2.new(0, 0, 0, 0)
+    exportFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    TweenService:Create(exportFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, isMobile and 320 or 500, 0, isMobile and 400 or 450),
+        Position = UDim2.new(0.5, isMobile and -160 or -250, 0.5, isMobile and -200 or -225)
+    }):Play()
+end
+
+-- Conectar botão Export
+local exportBtn = actionsScroll:FindFirstChild("Export")
+if exportBtn then
+    exportBtn.MouseButton1Click:Connect(function()
+        ExportSystem:ShowExportDialog()
+    end)
+end
+
+-- Toggle do Animator
+local animatorToggle = AnimatorGui:FindFirstChild("AnimatorToggle")
+local animatorVisible = false
+
+if animatorToggle then
+    animatorToggle.MouseButton1Click:Connect(function()
+        animatorVisible = not animatorVisible
+        
+        if animatorVisible then
+            mainFrame.Visible = true
+            mainFrame.Size = UDim2.new(0, 0, 0, 0)
+            mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            
+            TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, isMobile and 360 or 900, 0, isMobile and 550 or 600),
+                Position = UDim2.new(0.5, isMobile and -180 or -450, 0.5, isMobile and -275 or -300)
+            }):Play()
+        else
+            TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0)
+            }):Play()
+            task.wait(0.3)
+            mainFrame.Visible = false
+        end
+    end)
+end
+
+-- Botão fechar
+local closeBtn = mainFrame:FindFirstChild("Header"):FindFirstChild("TextButton") or mainFrame.Header:GetChildren()[3]
+for _, child in ipairs(mainFrame.Header:GetChildren()) do
+    if child:IsA("TextButton") and child.Text == "✕" then
+        child.MouseButton1Click:Connect(function()
+            animatorVisible = false
+            TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0)
+            }):Play()
+            task.wait(0.3)
+            mainFrame.Visible = false
+        end)
+    end
+end
+
+-- Exportar sistemas
+_G.SelectionSystem = SelectionSystem
+_G.ExportSystem = ExportSystem
+
+-- Notificação de carregamento
+task.wait(0.5)
+if _G.ShowMortalNotification then
+    _G.ShowMortalNotification(
+        "👑☠️MORTAL ANIMATOR☠️👑",
+        "Carregado com Sucesso!\n\nAproveite essa ferramenta profissional nível de jogos de Consoles⚡",
+        5
+    )
+end
+
+-- Função para carregar o Animator (usado pelo menu principal)
+_G.LoadMortalAnimator = function()
+    animatorVisible = true
+    mainFrame.Visible = true
+    mainFrame.Size = UDim2.new(0, 0, 0, 0)
+    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    
+    TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, isMobile and 360 or 900, 0, isMobile and 550 or 600),
+        Position = UDim2.new(0.5, isMobile and -180 or -450, 0.5, isMobile and -275 or -300)
+    }):Play()
+end
+
+print("⚡☠️ MORTAL ANIMATOR V1 - COMPLETAMENTE CARREGADO ☠️⚡")
+
+-- ⚡☠️ MORTAL ANIMATOR V1 ☠️⚡
 -- Parte 5 - Sistema Completo de Cutscenes
 -- Para Studio Lite + Delta Executor
 
@@ -2826,4 +3387,6 @@ print("⚡ Mortal Animator - Parte 7 Carregada (Integração Studio Lite)")
 print("═══════════════════════════════════════════════════════════")
 print("⚡☠️ MORTAL ANIMATOR V1 - TOTALMENTE CARREGADO ☠️⚡")
 print("═══════════════════════════════════════════════════════════")
+
+
 
