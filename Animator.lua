@@ -3388,5 +3388,3786 @@ print("════════════════════════�
 print("⚡☠️ MORTAL ANIMATOR V1 - TOTALMENTE CARREGADO ☠️⚡")
 print("═══════════════════════════════════════════════════════════")
 
+-- 🌑☠️ MORTAL DARKNESS TERRAIN EDITOR V1 ☠️🌑
+-- Parte 1 - Interface Principal
+-- Inspirado em: Blender, Unreal 5.7, Unity, Roblox Studio
+-- Para Studio Lite + Delta Executor
 
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
 
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+-- Cores do tema escuro
+local Colors = {
+    Background = Color3.fromRGB(10, 10, 15),
+    Secondary = Color3.fromRGB(20, 20, 28),
+    Tertiary = Color3.fromRGB(30, 30, 40),
+    Accent = Color3.fromRGB(100, 50, 150),
+    AccentDark = Color3.fromRGB(60, 20, 100),
+    Purple = Color3.fromRGB(138, 43, 226),
+    DarkPurple = Color3.fromRGB(75, 0, 130),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextDark = Color3.fromRGB(160, 160, 170),
+    Red = Color3.fromRGB(200, 50, 70),
+    Green = Color3.fromRGB(50, 200, 100),
+    Blue = Color3.fromRGB(50, 150, 255),
+    Gold = Color3.fromRGB(255, 200, 50),
+    Orange = Color3.fromRGB(255, 140, 0),
+    Cyan = Color3.fromRGB(0, 200, 200),
+    TerrainGreen = Color3.fromRGB(80, 150, 80),
+    TerrainBrown = Color3.fromRGB(139, 90, 43),
+    Water = Color3.fromRGB(30, 100, 180)
+}
+
+-- Remover GUI anterior
+if playerGui:FindFirstChild("MortalTerrainGUI") then
+    playerGui.MortalTerrainGUI:Destroy()
+end
+
+-- Criar ScreenGui
+local TerrainGui = Instance.new("ScreenGui")
+TerrainGui.Name = "MortalTerrainGUI"
+TerrainGui.ResetOnSpawn = false
+TerrainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+TerrainGui.Parent = playerGui
+
+-- Funções utilitárias
+local function CreateCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+local function CreateGradient(parent, color1, color2, rotation)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color1),
+        ColorSequenceKeypoint.new(1, color2)
+    })
+    gradient.Rotation = rotation or 45
+    gradient.Parent = parent
+    return gradient
+end
+
+local function CreateShadow(parent)
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Position = UDim2.new(0, -15, 0, -15)
+    shadow.Size = UDim2.new(1, 30, 1, 30)
+    shadow.ZIndex = parent.ZIndex - 1
+    shadow.Image = "rbxassetid://6015897843"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = 0.4
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+    shadow.Parent = parent
+    return shadow
+end
+
+local function CreateStroke(parent, color, thickness)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Colors.Accent
+    stroke.Thickness = thickness or 2
+    stroke.Parent = parent
+    return stroke
+end
+
+-- Dados do Terrain Editor
+local TerrainData = {
+    BrushSize = 10,
+    BrushStrength = 0.5,
+    BrushShape = "Circle", -- Circle, Square
+    CurrentTool = "Raise",
+    CurrentMaterial = Enum.Material.Grass,
+    CurrentStyle = "Realistic",
+    WaterLevel = 0,
+    IsEditing = false,
+    UndoStack = {},
+    RedoStack = {}
+}
+
+-- Materiais disponíveis com cores
+local TerrainMaterials = {
+    {name = "Grass", material = Enum.Material.Grass, color = Color3.fromRGB(80, 150, 80), icon = "🌿"},
+    {name = "Sand", material = Enum.Material.Sand, color = Color3.fromRGB(220, 190, 130), icon = "🏖️"},
+    {name = "Rock", material = Enum.Material.Rock, color = Color3.fromRGB(120, 120, 120), icon = "🪨"},
+    {name = "Ground", material = Enum.Material.Ground, color = Color3.fromRGB(139, 90, 43), icon = "🟤"},
+    {name = "Snow", material = Enum.Material.Snow, color = Color3.fromRGB(240, 240, 255), icon = "❄️"},
+    {name = "Mud", material = Enum.Material.Mud, color = Color3.fromRGB(90, 60, 40), icon = "💩"},
+    {name = "Slate", material = Enum.Material.Slate, color = Color3.fromRGB(80, 80, 90), icon = "⬛"},
+    {name = "Concrete", material = Enum.Material.Concrete, color = Color3.fromRGB(150, 150, 150), icon = "🧱"},
+    {name = "Brick", material = Enum.Material.Brick, color = Color3.fromRGB(180, 80, 60), icon = "🧱"},
+    {name = "Cobblestone", material = Enum.Material.Cobblestone, color = Color3.fromRGB(100, 100, 100), icon = "🔲"},
+    {name = "Ice", material = Enum.Material.Ice, color = Color3.fromRGB(200, 230, 255), icon = "🧊"},
+    {name = "Glacier", material = Enum.Material.Glacier, color = Color3.fromRGB(180, 220, 255), icon = "🏔️"},
+    {name = "Sandstone", material = Enum.Material.Sandstone, color = Color3.fromRGB(200, 170, 130), icon = "🏜️"},
+    {name = "Basalt", material = Enum.Material.Basalt, color = Color3.fromRGB(50, 50, 55), icon = "⚫"},
+    {name = "CrackedLava", material = Enum.Material.CrackedLava, color = Color3.fromRGB(200, 50, 0), icon = "🌋"},
+    {name = "Asphalt", material = Enum.Material.Asphalt, color = Color3.fromRGB(40, 40, 45), icon = "🛣️"},
+    {name = "LeafyGrass", material = Enum.Material.LeafyGrass, color = Color3.fromRGB(60, 140, 60), icon = "🍃"},
+    {name = "Limestone", material = Enum.Material.Limestone, color = Color3.fromRGB(200, 195, 180), icon = "⬜"},
+    {name = "Pavement", material = Enum.Material.Pavement, color = Color3.fromRGB(130, 130, 130), icon = "🚶"},
+    {name = "Salt", material = Enum.Material.Salt, color = Color3.fromRGB(250, 250, 250), icon = "🧂"},
+}
+
+-- Botão Toggle (arrastável)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "TerrainToggle"
+toggleBtn.Size = UDim2.new(0, 55, 0, 55)
+toggleBtn.Position = UDim2.new(0, 20, 0, 220)
+toggleBtn.BackgroundColor3 = Colors.Secondary
+toggleBtn.Text = "🌑"
+toggleBtn.TextSize = 28
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.BorderSizePixel = 0
+toggleBtn.ZIndex = 50
+toggleBtn.Parent = TerrainGui
+CreateCorner(toggleBtn, 27)
+CreateShadow(toggleBtn)
+
+local toggleGlow = Instance.new("Frame")
+toggleGlow.Size = UDim2.new(1, 8, 1, 8)
+toggleGlow.Position = UDim2.new(0, -4, 0, -4)
+toggleGlow.BackgroundTransparency = 0.6
+toggleGlow.ZIndex = 49
+toggleGlow.Parent = toggleBtn
+CreateCorner(toggleGlow, 31)
+CreateGradient(toggleGlow, Colors.DarkPurple, Colors.Purple, 45)
+
+-- Sistema de arrastar
+local dragging = false
+local dragStart, startPos
+
+toggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = toggleBtn.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        toggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Frame Principal
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, isMobile and 350 or 950, 0, isMobile and 520 or 600)
+mainFrame.Position = UDim2.new(0.5, isMobile and -175 or -475, 0.5, isMobile and -260 or -300)
+mainFrame.BackgroundColor3 = Colors.Background
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.ZIndex = 20
+mainFrame.Parent = TerrainGui
+CreateCorner(mainFrame, 16)
+CreateShadow(mainFrame)
+CreateStroke(mainFrame, Colors.DarkPurple, 2)
+
+-- Header
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 55)
+header.BackgroundColor3 = Colors.Secondary
+header.BorderSizePixel = 0
+header.ZIndex = 21
+header.Parent = mainFrame
+CreateCorner(header, 16)
+
+local headerBottom = Instance.new("Frame")
+headerBottom.Size = UDim2.new(1, 0, 0, 16)
+headerBottom.Position = UDim2.new(0, 0, 1, -16)
+headerBottom.BackgroundColor3 = Colors.Secondary
+headerBottom.BorderSizePixel = 0
+headerBottom.ZIndex = 21
+headerBottom.Parent = header
+
+-- Título com efeito
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(0.8, 0, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🌑☠️ MORTAL DARKNESS TERRAIN EDITOR ☠️🌑"
+titleLabel.TextColor3 = Colors.Purple
+titleLabel.TextSize = isMobile and 12 or 18
+titleLabel.Font = Enum.Font.GothamBlack
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 22
+titleLabel.Parent = header
+
+local subtitleLabel = Instance.new("TextLabel")
+subtitleLabel.Size = UDim2.new(1, 0, 0, 20)
+subtitleLabel.Position = UDim2.new(0, 0, 0, 58)
+subtitleLabel.BackgroundTransparency = 1
+subtitleLabel.Text = "Ultra Realistic Terrain • 4K Textures • Physics • Inspired by Unreal 5.7 & Blender"
+subtitleLabel.TextColor3 = Colors.TextDark
+subtitleLabel.TextSize = isMobile and 9 or 11
+subtitleLabel.Font = Enum.Font.Gotham
+subtitleLabel.ZIndex = 21
+subtitleLabel.Parent = mainFrame
+
+-- Botão Fechar
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 40, 0, 40)
+closeBtn.Position = UDim2.new(1, -50, 0.5, -20)
+closeBtn.BackgroundColor3 = Colors.Red
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Colors.Text
+closeBtn.TextSize = 18
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.BorderSizePixel = 0
+closeBtn.ZIndex = 22
+closeBtn.Parent = header
+CreateCorner(closeBtn, 10)
+
+closeBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0)
+    }):Play()
+    task.wait(0.3)
+    mainFrame.Visible = false
+end)
+
+-- Painel Esquerdo - Ferramentas
+local toolsPanel = Instance.new("Frame")
+toolsPanel.Name = "ToolsPanel"
+toolsPanel.Size = UDim2.new(0, isMobile and 80 or 180, 1, -180)
+toolsPanel.Position = UDim2.new(0, 10, 0, 85)
+toolsPanel.BackgroundColor3 = Colors.Secondary
+toolsPanel.BorderSizePixel = 0
+toolsPanel.ZIndex = 21
+toolsPanel.Parent = mainFrame
+CreateCorner(toolsPanel, 12)
+
+local toolsTitle = Instance.new("TextLabel")
+toolsTitle.Size = UDim2.new(1, 0, 0, 30)
+toolsTitle.BackgroundColor3 = Colors.Tertiary
+toolsTitle.Text = "🔧 Ferramentas"
+toolsTitle.TextColor3 = Colors.Text
+toolsTitle.TextSize = 11
+toolsTitle.Font = Enum.Font.GothamBold
+toolsTitle.ZIndex = 22
+toolsTitle.Parent = toolsPanel
+CreateCorner(toolsTitle, 12)
+
+-- Lista de Ferramentas
+local toolsScroll = Instance.new("ScrollingFrame")
+toolsScroll.Size = UDim2.new(1, -10, 1, -40)
+toolsScroll.Position = UDim2.new(0, 5, 0, 35)
+toolsScroll.BackgroundTransparency = 1
+toolsScroll.ScrollBarThickness = 3
+toolsScroll.ScrollBarImageColor3 = Colors.Purple
+toolsScroll.ZIndex = 22
+toolsScroll.CanvasSize = UDim2.new(0, 0, 0, 600)
+toolsScroll.Parent = toolsPanel
+
+local toolsLayout = Instance.new("UIListLayout")
+toolsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+toolsLayout.Padding = UDim.new(0, 5)
+toolsLayout.Parent = toolsScroll
+
+-- Ferramentas disponíveis
+local tools = {
+    {name = "Raise", icon = "⬆️", desc = "Elevar terreno", color = Colors.Green},
+    {name = "Lower", icon = "⬇️", desc = "Abaixar terreno", color = Colors.Red},
+    {name = "Flatten", icon = "➖", desc = "Nivelar terreno", color = Colors.Blue},
+    {name = "Smooth", icon = "〰️", desc = "Suavizar terreno", color = Colors.Cyan},
+    {name = "Paint", icon = "🎨", desc = "Pintar material", color = Colors.Purple},
+    {name = "Erode", icon = "💨", desc = "Erosão natural", color = Colors.Orange},
+    {name = "Grow", icon = "🌱", desc = "Crescer vegetação", color = Colors.TerrainGreen},
+    {name = "Sea Level", icon = "🌊", desc = "Nível do mar", color = Colors.Water},
+    {name = "Add", icon = "➕", desc = "Adicionar terreno", color = Colors.Green},
+    {name = "Subtract", icon = "➖", desc = "Remover terreno", color = Colors.Red},
+    {name = "Fill Region", icon = "⬛", desc = "Preencher região", color = Colors.Gold},
+    {name = "Replace", icon = "🔄", desc = "Substituir material", color = Colors.Cyan},
+}
+
+local selectedToolButton = nil
+
+for i, tool in ipairs(tools) do
+    local btn = Instance.new("TextButton")
+    btn.Name = tool.name
+    btn.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
+    btn.BackgroundColor3 = Colors.Tertiary
+    btn.Text = tool.icon .. (isMobile and "" or " " .. tool.name)
+    btn.TextColor3 = Colors.Text
+    btn.TextSize = isMobile and 14 or 12
+    btn.Font = Enum.Font.GothamBold
+    btn.TextXAlignment = isMobile and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 23
+    btn.LayoutOrder = i
+    btn.Parent = toolsScroll
+    CreateCorner(btn, 8)
+    
+    -- Indicador de cor
+    local colorIndicator = Instance.new("Frame")
+    colorIndicator.Size = UDim2.new(0, 4, 1, -8)
+    colorIndicator.Position = UDim2.new(0, 4, 0, 4)
+    colorIndicator.BackgroundColor3 = tool.color
+    colorIndicator.BorderSizePixel = 0
+    colorIndicator.ZIndex = 24
+    colorIndicator.Parent = btn
+    CreateCorner(colorIndicator, 2)
+    
+    btn.MouseButton1Click:Connect(function()
+        TerrainData.CurrentTool = tool.name
+        
+        -- Atualizar visual
+        if selectedToolButton then
+            TweenService:Create(selectedToolButton, TweenInfo.new(0.2), {BackgroundColor3 = Colors.Tertiary}):Play()
+        end
+        selectedToolButton = btn
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = tool.color}):Play()
+        
+        if _G.ShowMortalNotification then
+            _G.ShowMortalNotification("🔧 Ferramenta", tool.name .. " selecionada\n" .. tool.desc, 2)
+        end
+    end)
+    
+    -- Hover effect
+    btn.MouseEnter:Connect(function()
+        if btn ~= selectedToolButton then
+            TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(50, 50, 60)}):Play()
+        end
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        if btn ~= selectedToolButton then
+            TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Colors.Tertiary}):Play()
+        end
+    end)
+end
+
+-- Atualizar canvas size
+toolsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    toolsScroll.CanvasSize = UDim2.new(0, 0, 0, toolsLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- Painel Central - Materiais
+local materialsPanel = Instance.new("Frame")
+materialsPanel.Name = "MaterialsPanel"
+materialsPanel.Size = UDim2.new(0, isMobile and 160 or 300, 1, -180)
+materialsPanel.Position = UDim2.new(0, isMobile and 95 or 200, 0, 85)
+materialsPanel.BackgroundColor3 = Colors.Secondary
+materialsPanel.BorderSizePixel = 0
+materialsPanel.ZIndex = 21
+materialsPanel.Parent = mainFrame
+CreateCorner(materialsPanel, 12)
+
+local materialsTitle = Instance.new("TextLabel")
+materialsTitle.Size = UDim2.new(1, 0, 0, 30)
+materialsTitle.BackgroundColor3 = Colors.Tertiary
+materialsTitle.Text = "🎨 Materiais (4K Textures)"
+materialsTitle.TextColor3 = Colors.Text
+materialsTitle.TextSize = 11
+materialsTitle.Font = Enum.Font.GothamBold
+materialsTitle.ZIndex = 22
+materialsTitle.Parent = materialsPanel
+CreateCorner(materialsTitle, 12)
+
+local materialsScroll = Instance.new("ScrollingFrame")
+materialsScroll.Size = UDim2.new(1, -10, 1, -40)
+materialsScroll.Position = UDim2.new(0, 5, 0, 35)
+materialsScroll.BackgroundTransparency = 1
+materialsScroll.ScrollBarThickness = 3
+materialsScroll.ScrollBarImageColor3 = Colors.Purple
+materialsScroll.ZIndex = 22
+materialsScroll.CanvasSize = UDim2.new(0, 0, 0, 800)
+materialsScroll.Parent = materialsPanel
+
+local materialsGrid = Instance.new("UIGridLayout")
+materialsGrid.CellSize = UDim2.new(0, isMobile and 45 or 65, 0, isMobile and 45 or 65)
+materialsGrid.CellPadding = UDim2.new(0, 5, 0, 5)
+materialsGrid.SortOrder = Enum.SortOrder.LayoutOrder
+materialsGrid.Parent = materialsScroll
+
+local selectedMaterialButton = nil
+
+for i, mat in ipairs(TerrainMaterials) do
+    local btn = Instance.new("TextButton")
+    btn.Name = mat.name
+    btn.Size = UDim2.new(0, 60, 0, 60)
+    btn.BackgroundColor3 = mat.color
+    btn.Text = mat.icon
+    btn.TextSize = isMobile and 18 or 22
+    btn.Font = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 23
+    btn.LayoutOrder = i
+    btn.Parent = materialsScroll
+    CreateCorner(btn, 10)
+    
+    -- Label do nome
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0, 15)
+    nameLabel.Position = UDim2.new(0, 0, 1, -15)
+    nameLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+    nameLabel.BackgroundTransparency = 0.5
+    nameLabel.Text = mat.name
+    nameLabel.TextColor3 = Colors.Text
+    nameLabel.TextSize = 8
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.ZIndex = 24
+    nameLabel.Parent = btn
+    
+    btn.MouseButton1Click:Connect(function()
+        TerrainData.CurrentMaterial = mat.material
+        
+        if selectedMaterialButton then
+            local prevStroke = selectedMaterialButton:FindFirstChild("SelectStroke")
+            if prevStroke then prevStroke:Destroy() end
+        end
+        
+        selectedMaterialButton = btn
+        local stroke = Instance.new("UIStroke")
+        stroke.Name = "SelectStroke"
+        stroke.Color = Colors.Gold
+        stroke.Thickness = 3
+        stroke.Parent = btn
+        
+        if _G.ShowMortalNotification then
+            _G.ShowMortalNotification("🎨 Material", mat.name .. " selecionado", 1.5)
+        end
+    end)
+end
+
+-- Atualizar canvas
+materialsGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    materialsScroll.CanvasSize = UDim2.new(0, 0, 0, materialsGrid.AbsoluteContentSize.Y + 20)
+end)
+
+-- Painel Direito - Configurações
+local settingsPanel = Instance.new("Frame")
+settingsPanel.Name = "SettingsPanel"
+settingsPanel.Size = UDim2.new(0, isMobile and 80 or 230, 1, -180)
+settingsPanel.Position = UDim2.new(1, isMobile and -90 or -240, 0, 85)
+settingsPanel.BackgroundColor3 = Colors.Secondary
+settingsPanel.BorderSizePixel = 0
+settingsPanel.ZIndex = 21
+settingsPanel.Parent = mainFrame
+CreateCorner(settingsPanel, 12)
+
+local settingsTitle = Instance.new("TextLabel")
+settingsTitle.Size = UDim2.new(1, 0, 0, 30)
+settingsTitle.BackgroundColor3 = Colors.Tertiary
+settingsTitle.Text = "⚙️ Configurações"
+settingsTitle.TextColor3 = Colors.Text
+settingsTitle.TextSize = 11
+settingsTitle.Font = Enum.Font.GothamBold
+settingsTitle.ZIndex = 22
+settingsTitle.Parent = settingsPanel
+CreateCorner(settingsTitle, 12)
+
+-- Exportar variáveis
+_G.TerrainMainFrame = mainFrame
+_G.TerrainData = TerrainData
+_G.TerrainColors = Colors
+_G.TerrainMaterials = TerrainMaterials
+_G.TerrainGui = TerrainGui
+
+print("🌑 Mortal Terrain Editor - Parte 1 Carregada")
+
+-- 🌑☠️ MORTAL DARKNESS TERRAIN EDITOR V1 ☠️🌑
+-- Parte 2 - Configurações de Pincel e Sliders
+-- Para Studio Lite + Delta Executor
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TerrainGui = playerGui:WaitForChild("MortalTerrainGUI")
+local mainFrame = _G.TerrainMainFrame
+local TerrainData = _G.TerrainData
+local Colors = _G.TerrainColors
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local function CreateCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+local function CreateGradient(parent, color1, color2, rotation)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color1),
+        ColorSequenceKeypoint.new(1, color2)
+    })
+    gradient.Rotation = rotation or 45
+    gradient.Parent = parent
+    return gradient
+end
+
+-- Encontrar painel de settings
+local settingsPanel = mainFrame:FindFirstChild("SettingsPanel")
+if not settingsPanel then
+    warn("Settings panel não encontrado!")
+    return
+end
+
+-- Container de configurações
+local settingsScroll = Instance.new("ScrollingFrame")
+settingsScroll.Name = "SettingsScroll"
+settingsScroll.Size = UDim2.new(1, -10, 1, -40)
+settingsScroll.Position = UDim2.new(0, 5, 0, 35)
+settingsScroll.BackgroundTransparency = 1
+settingsScroll.ScrollBarThickness = 3
+settingsScroll.ScrollBarImageColor3 = Colors.Purple
+settingsScroll.ZIndex = 22
+settingsScroll.CanvasSize = UDim2.new(0, 0, 0, 600)
+settingsScroll.Parent = settingsPanel
+
+local settingsLayout = Instance.new("UIListLayout")
+settingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+settingsLayout.Padding = UDim.new(0, 8)
+settingsLayout.Parent = settingsScroll
+
+-- Função para criar Slider
+local function CreateSlider(parent, name, minVal, maxVal, defaultVal, callback, layoutOrder)
+    local container = Instance.new("Frame")
+    container.Name = name .. "Container"
+    container.Size = UDim2.new(1, 0, 0, isMobile and 50 or 60)
+    container.BackgroundColor3 = Colors.Tertiary
+    container.BorderSizePixel = 0
+    container.ZIndex = 23
+    container.LayoutOrder = layoutOrder or 0
+    container.Parent = parent
+    CreateCorner(container, 8)
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 18)
+    label.Position = UDim2.new(0, 5, 0, 3)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Colors.Text
+    label.TextSize = isMobile and 9 or 11
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 24
+    label.Parent = container
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "ValueLabel"
+    valueLabel.Size = UDim2.new(0, 40, 0, 18)
+    valueLabel.Position = UDim2.new(1, -45, 0, 3)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(defaultVal)
+    valueLabel.TextColor3 = Colors.Gold
+    valueLabel.TextSize = isMobile and 9 or 11
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.ZIndex = 24
+    valueLabel.Parent = container
+    
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Name = "SliderBg"
+    sliderBg.Size = UDim2.new(1, -16, 0, isMobile and 12 or 16)
+    sliderBg.Position = UDim2.new(0, 8, 0, isMobile and 28 or 32)
+    sliderBg.BackgroundColor3 = Colors.Background
+    sliderBg.BorderSizePixel = 0
+    sliderBg.ZIndex = 24
+    sliderBg.Parent = container
+    CreateCorner(sliderBg, 8)
+    
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Name = "SliderFill"
+    local initialPercent = (defaultVal - minVal) / (maxVal - minVal)
+    sliderFill.Size = UDim2.new(initialPercent, 0, 1, 0)
+    sliderFill.BackgroundColor3 = Colors.Purple
+    sliderFill.BorderSizePixel = 0
+    sliderFill.ZIndex = 25
+    sliderFill.Parent = sliderBg
+    CreateCorner(sliderFill, 8)
+    CreateGradient(sliderFill, Colors.AccentDark, Colors.Purple, 0)
+    
+    local sliderKnob = Instance.new("Frame")
+    sliderKnob.Name = "SliderKnob"
+    sliderKnob.Size = UDim2.new(0, isMobile and 16 or 20, 0, isMobile and 16 or 20)
+    sliderKnob.Position = UDim2.new(initialPercent, isMobile and -8 or -10, 0.5, isMobile and -8 or -10)
+    sliderKnob.BackgroundColor3 = Colors.Text
+    sliderKnob.BorderSizePixel = 0
+    sliderKnob.ZIndex = 26
+    sliderKnob.Parent = sliderBg
+    CreateCorner(sliderKnob, 10)
+    
+    -- Interação do slider
+    local draggingSlider = false
+    
+    local function updateSlider(inputPos)
+        local relativeX = inputPos.X - sliderBg.AbsolutePosition.X
+        local percent = math.clamp(relativeX / sliderBg.AbsoluteSize.X, 0, 1)
+        local value = minVal + (maxVal - minVal) * percent
+        
+        -- Arredondar para 1 casa decimal
+        value = math.floor(value * 10 + 0.5) / 10
+        
+        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+        sliderKnob.Position = UDim2.new(percent, isMobile and -8 or -10, 0.5, isMobile and -8 or -10)
+        valueLabel.Text = tostring(value)
+        
+        if callback then
+            callback(value)
+        end
+    end
+    
+    sliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingSlider = true
+            updateSlider(input.Position)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateSlider(input.Position)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            draggingSlider = false
+        end
+    end)
+    
+    return container
+end
+
+-- Função para criar Toggle
+local function CreateToggle(parent, name, defaultState, callback, layoutOrder)
+    local container = Instance.new("Frame")
+    container.Name = name .. "Toggle"
+    container.Size = UDim2.new(1, 0, 0, 35)
+    container.BackgroundColor3 = Colors.Tertiary
+    container.BorderSizePixel = 0
+    container.ZIndex = 23
+    container.LayoutOrder = layoutOrder or 0
+    container.Parent = parent
+    CreateCorner(container, 8)
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -60, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Colors.Text
+    label.TextSize = isMobile and 9 or 11
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 24
+    label.Parent = container
+    
+    local toggleBg = Instance.new("Frame")
+    toggleBg.Size = UDim2.new(0, 45, 0, 22)
+    toggleBg.Position = UDim2.new(1, -55, 0.5, -11)
+    toggleBg.BackgroundColor3 = defaultState and Colors.Green or Colors.Background
+    toggleBg.BorderSizePixel = 0
+    toggleBg.ZIndex = 24
+    toggleBg.Parent = container
+    CreateCorner(toggleBg, 11)
+    
+    local toggleKnob = Instance.new("Frame")
+    toggleKnob.Size = UDim2.new(0, 18, 0, 18)
+    toggleKnob.Position = defaultState and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
+    toggleKnob.BackgroundColor3 = Colors.Text
+    toggleKnob.BorderSizePixel = 0
+    toggleKnob.ZIndex = 25
+    toggleKnob.Parent = toggleBg
+    CreateCorner(toggleKnob, 9)
+    
+    local state = defaultState
+    
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+    toggleBtn.BackgroundTransparency = 1
+    toggleBtn.Text = ""
+    toggleBtn.ZIndex = 26
+    toggleBtn.Parent = container
+    
+    toggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        
+        TweenService:Create(toggleBg, TweenInfo.new(0.2), {
+            BackgroundColor3 = state and Colors.Green or Colors.Background
+        }):Play()
+        
+        TweenService:Create(toggleKnob, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
+            Position = state and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
+        }):Play()
+        
+        if callback then
+            callback(state)
+        end
+    end)
+    
+    return container, function() return state end
+end
+
+-- Função para criar Dropdown
+local function CreateDropdown(parent, name, options, defaultOption, callback, layoutOrder)
+    local container = Instance.new("Frame")
+    container.Name = name .. "Dropdown"
+    container.Size = UDim2.new(1, 0, 0, 60)
+    container.BackgroundColor3 = Colors.Tertiary
+    container.BorderSizePixel = 0
+    container.ZIndex = 23
+    container.LayoutOrder = layoutOrder or 0
+    container.ClipsDescendants = false
+    container.Parent = parent
+    CreateCorner(container, 8)
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 20)
+    label.Position = UDim2.new(0, 5, 0, 3)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Colors.Text
+    label.TextSize = isMobile and 9 or 11
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 24
+    label.Parent = container
+    
+    local dropBtn = Instance.new("TextButton")
+    dropBtn.Size = UDim2.new(1, -16, 0, 28)
+    dropBtn.Position = UDim2.new(0, 8, 0, 26)
+    dropBtn.BackgroundColor3 = Colors.Background
+    dropBtn.Text = defaultOption .. " ▼"
+    dropBtn.TextColor3 = Colors.Gold
+    dropBtn.TextSize = isMobile and 10 or 12
+    dropBtn.Font = Enum.Font.GothamBold
+    dropBtn.BorderSizePixel = 0
+    dropBtn.ZIndex = 24
+    dropBtn.Parent = container
+    CreateCorner(dropBtn, 6)
+    
+    local dropdownList = Instance.new("Frame")
+    dropdownList.Name = "DropdownList"
+    dropdownList.Size = UDim2.new(1, -16, 0, #options * 28)
+    dropdownList.Position = UDim2.new(0, 8, 1, 5)
+    dropdownList.BackgroundColor3 = Colors.Secondary
+    dropdownList.BorderSizePixel = 0
+    dropdownList.ZIndex = 30
+    dropdownList.Visible = false
+    dropdownList.Parent = container
+    CreateCorner(dropdownList, 8)
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = dropdownList
+    
+    local currentOption = defaultOption
+    
+    for i, option in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Size = UDim2.new(1, 0, 0, 28)
+        optBtn.BackgroundColor3 = option == currentOption and Colors.Purple or Colors.Tertiary
+        optBtn.Text = option
+        optBtn.TextColor3 = Colors.Text
+        optBtn.TextSize = isMobile and 9 or 11
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.BorderSizePixel = 0
+        optBtn.ZIndex = 31
+        optBtn.LayoutOrder = i
+        optBtn.Parent = dropdownList
+        
+        optBtn.MouseButton1Click:Connect(function()
+            currentOption = option
+            dropBtn.Text = option .. " ▼"
+            dropdownList.Visible = false
+            
+            -- Atualizar cores
+            for _, child in ipairs(dropdownList:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child.BackgroundColor3 = child.Text == option and Colors.Purple or Colors.Tertiary
+                end
+            end
+            
+            if callback then
+                callback(option)
+            end
+        end)
+    end
+    
+    dropBtn.MouseButton1Click:Connect(function()
+        dropdownList.Visible = not dropdownList.Visible
+    end)
+    
+    return container
+end
+
+-- Seção: Tamanho do Pincel
+local brushSection = Instance.new("TextLabel")
+brushSection.Size = UDim2.new(1, 0, 0, 25)
+brushSection.BackgroundColor3 = Colors.AccentDark
+brushSection.Text = "🖌️ Pincel"
+brushSection.TextColor3 = Colors.Text
+brushSection.TextSize = 11
+brushSection.Font = Enum.Font.GothamBlack
+brushSection.ZIndex = 23
+brushSection.LayoutOrder = 1
+brushSection.Parent = settingsScroll
+CreateCorner(brushSection, 6)
+
+-- Slider: Tamanho do Pincel
+CreateSlider(settingsScroll, "Tamanho", 1, 50, TerrainData.BrushSize, function(value)
+    TerrainData.BrushSize = value
+end, 2)
+
+-- Slider: Força do Pincel
+CreateSlider(settingsScroll, "Força", 0.1, 1, TerrainData.BrushStrength, function(value)
+    TerrainData.BrushStrength = value
+end, 3)
+
+-- Dropdown: Forma do Pincel
+CreateDropdown(settingsScroll, "Forma", {"Circle", "Square", "Sphere"}, "Circle", function(option)
+    TerrainData.BrushShape = option
+end, 4)
+
+-- Seção: Estilo de Terreno
+local styleSection = Instance.new("TextLabel")
+styleSection.Size = UDim2.new(1, 0, 0, 25)
+styleSection.BackgroundColor3 = Colors.AccentDark
+styleSection.Text = "🎨 Estilo"
+styleSection.TextColor3 = Colors.Text
+styleSection.TextSize = 11
+styleSection.Font = Enum.Font.GothamBlack
+styleSection.ZIndex = 23
+styleSection.LayoutOrder = 5
+styleSection.Parent = settingsScroll
+CreateCorner(styleSection, 6)
+
+-- Dropdown: Estilo do Terreno
+CreateDropdown(settingsScroll, "Preset", {
+    "Ultra Realistic",
+    "Stylized",
+    "Low Poly",
+    "Fantasy",
+    "Sci-Fi",
+    "Desert",
+    "Arctic",
+    "Volcanic",
+    "Tropical"
+}, "Ultra Realistic", function(option)
+    TerrainData.CurrentStyle = option
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🎨 Estilo", option .. " ativado!", 2)
+    end
+end, 6)
+
+-- Seção: Física
+local physicsSection = Instance.new("TextLabel")
+physicsSection.Size = UDim2.new(1, 0, 0, 25)
+physicsSection.BackgroundColor3 = Colors.AccentDark
+physicsSection.Text = "⚡ Física"
+physicsSection.TextColor3 = Colors.Text
+physicsSection.TextSize = 11
+physicsSection.Font = Enum.Font.GothamBlack
+physicsSection.ZIndex = 23
+physicsSection.LayoutOrder = 7
+physicsSection.Parent = settingsScroll
+CreateCorner(physicsSection, 6)
+
+-- Toggle: Física Realista
+CreateToggle(settingsScroll, "Física Realista", true, function(state)
+    TerrainData.RealisticPhysics = state
+end, 8)
+
+-- Toggle: Vento
+CreateToggle(settingsScroll, "Vento Global", false, function(state)
+    TerrainData.WindEnabled = state
+    if state then
+        -- Criar vento
+        local wind = Workspace:FindFirstChild("GlobalWind")
+        if not wind then
+            Workspace.GlobalWind = Vector3.new(5, 0, 2)
+        end
+    else
+        Workspace.GlobalWind = Vector3.new(0, 0, 0)
+    end
+end, 9)
+
+-- Toggle: Água Interativa
+CreateToggle(settingsScroll, "Água Interativa", true, function(state)
+    TerrainData.InteractiveWater = state
+end, 10)
+
+-- Slider: Nível da Água
+CreateSlider(settingsScroll, "Nível da Água", -100, 200, 0, function(value)
+    TerrainData.WaterLevel = value
+end, 11)
+
+-- Seção: Geração
+local genSection = Instance.new("TextLabel")
+genSection.Size = UDim2.new(1, 0, 0, 25)
+genSection.BackgroundColor3 = Colors.AccentDark
+genSection.Text = "🌍 Geração"
+genSection.TextColor3 = Colors.Text
+genSection.TextSize = 11
+genSection.Font = Enum.Font.GothamBlack
+genSection.ZIndex = 23
+genSection.LayoutOrder = 12
+genSection.Parent = settingsScroll
+CreateCorner(genSection, 6)
+
+-- Slider: Seed
+CreateSlider(settingsScroll, "Seed", 1, 9999, math.random(1, 9999), function(value)
+    TerrainData.Seed = math.floor(value)
+end, 13)
+
+-- Slider: Escala do Ruído
+CreateSlider(settingsScroll, "Escala Ruído", 10, 500, 100, function(value)
+    TerrainData.NoiseScale = value
+end, 14)
+
+-- Slider: Amplitude
+CreateSlider(settingsScroll, "Amplitude", 10, 200, 50, function(value)
+    TerrainData.Amplitude = value
+end, 15)
+
+-- Atualizar canvas size
+settingsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    settingsScroll.CanvasSize = UDim2.new(0, 0, 0, settingsLayout.AbsoluteContentSize.Y + 20)
+end)
+
+-- Exportar
+_G.TerrainSettingsScroll = settingsScroll
+
+print("🌑 Mortal Terrain Editor - Parte 2 Carregada (Configurações)")
+
+-- 🌑☠️ MORTAL DARKNESS TERRAIN EDITOR V1 ☠️🌑
+-- Parte 3 - Sistema de Edição e Geração
+-- Para Studio Lite + Delta Executor
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TerrainGui = playerGui:WaitForChild("MortalTerrainGUI")
+local mainFrame = _G.TerrainMainFrame
+local TerrainData = _G.TerrainData
+local Colors = _G.TerrainColors
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local terrain = Workspace:WaitForChild("Terrain")
+
+local function CreateCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+local function CreateGradient(parent, color1, color2, rotation)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color1),
+        ColorSequenceKeypoint.new(1, color2)
+    })
+    gradient.Rotation = rotation or 45
+    gradient.Parent = parent
+    return gradient
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE EDIÇÃO DE TERRENO
+-- ═══════════════════════════════════════════════════════════════
+
+local TerrainEditor = {}
+TerrainEditor.IsEditing = false
+TerrainEditor.BrushIndicator = nil
+TerrainEditor.EditConnection = nil
+TerrainEditor.UndoStack = {}
+TerrainEditor.RedoStack = {}
+
+-- Criar indicador de pincel
+function TerrainEditor:CreateBrushIndicator()
+    if self.BrushIndicator then
+        self.BrushIndicator:Destroy()
+    end
+    
+    local indicator = Instance.new("Part")
+    indicator.Name = "TerrainBrushIndicator"
+    indicator.Shape = Enum.PartType.Cylinder
+    indicator.Size = Vector3.new(0.5, TerrainData.BrushSize * 2, TerrainData.BrushSize * 2)
+    indicator.CFrame = CFrame.new(0, 1000, 0) * CFrame.Angles(0, 0, math.rad(90))
+    indicator.Anchored = true
+    indicator.CanCollide = false
+    indicator.Transparency = 0.6
+    indicator.Color = Colors.Purple
+    indicator.Material = Enum.Material.Neon
+    indicator.Parent = Workspace
+    
+    self.BrushIndicator = indicator
+    return indicator
+end
+
+-- Atualizar tamanho do indicador
+function TerrainEditor:UpdateBrushSize()
+    if self.BrushIndicator then
+        self.BrushIndicator.Size = Vector3.new(0.5, TerrainData.BrushSize * 2, TerrainData.BrushSize * 2)
+    end
+end
+
+-- Obter posição do mouse no mundo
+function TerrainEditor:GetMousePosition()
+    local mouse = player:GetMouse()
+    local camera = Workspace.CurrentCamera
+    
+    if isMobile then
+        -- Para mobile, usar centro da tela ou último toque
+        local screenPos = camera.ViewportSize / 2
+        local ray = camera:ViewportPointToRay(screenPos.X, screenPos.Y)
+        local raycast = Workspace:Raycast(ray.Origin, ray.Direction * 1000)
+        
+        if raycast then
+            return raycast.Position
+        end
+    else
+        local target = mouse.Target
+        if target then
+            return mouse.Hit.Position
+        end
+    end
+    
+    return nil
+end
+
+-- Função principal de edição
+function TerrainEditor:ApplyBrush(position)
+    if not position then return end
+    
+    local size = TerrainData.BrushSize
+    local strength = TerrainData.BrushStrength
+    local tool = TerrainData.CurrentTool
+    local material = TerrainData.CurrentMaterial
+    
+    local region = Region3.new(
+        position - Vector3.new(size, size, size),
+        position + Vector3.new(size, size, size)
+    )
+    
+    -- Expandir para resolução do terreno (4 studs)
+    region = region:ExpandToGrid(4)
+    
+    if tool == "Raise" then
+        -- Elevar terreno
+        local materials, occupancy = terrain:ReadVoxels(region, 4)
+        local sizeX, sizeY, sizeZ = materials.Size.X, materials.Size.Y, materials.Size.Z
+        
+        for x = 1, sizeX do
+            for z = 1, sizeZ do
+                for y = sizeY, 1, -1 do
+                    local dist = math.sqrt((x - sizeX/2)^2 + (z - sizeZ/2)^2)
+                    local falloff = math.max(0, 1 - dist / (sizeX/2))
+                    
+                    if y < sizeY * (0.5 + strength * falloff * 0.3) then
+                        if materials[x][y][z] == Enum.Material.Air then
+                            materials[x][y][z] = material
+                            occupancy[x][y][z] = strength * falloff
+                        end
+                    end
+                end
+            end
+        end
+        
+        terrain:WriteVoxels(region, 4, materials, occupancy)
+        
+    elseif tool == "Lower" then
+        -- Abaixar terreno
+        local materials, occupancy = terrain:ReadVoxels(region, 4)
+        local sizeX, sizeY, sizeZ = materials.Size.X, materials.Size.Y, materials.Size.Z
+        
+        for x = 1, sizeX do
+            for z = 1, sizeZ do
+                for y = 1, sizeY do
+                    local dist = math.sqrt((x - sizeX/2)^2 + (z - sizeZ/2)^2)
+                    local falloff = math.max(0, 1 - dist / (sizeX/2))
+                    
+                    if y > sizeY * (0.5 - strength * falloff * 0.3) then
+                        occupancy[x][y][z] = math.max(0, occupancy[x][y][z] - strength * falloff * 0.5)
+                        if occupancy[x][y][z] <= 0 then
+                            materials[x][y][z] = Enum.Material.Air
+                        end
+                    end
+                end
+            end
+        end
+        
+        terrain:WriteVoxels(region, 4, materials, occupancy)
+        
+    elseif tool == "Flatten" then
+        -- Nivelar terreno
+        local targetY = position.Y
+        terrain:FillBlock(CFrame.new(position), Vector3.new(size * 2, 4, size * 2), material)
+        
+    elseif tool == "Smooth" then
+        -- Suavizar terreno usando erosão
+        local materials, occupancy = terrain:ReadVoxels(region, 4)
+        local sizeX, sizeY, sizeZ = materials.Size.X, materials.Size.Y, materials.Size.Z
+        
+        -- Aplicar blur simples
+        local newOccupancy = table.clone(occupancy)
+        
+        for x = 2, sizeX - 1 do
+            for y = 2, sizeY - 1 do
+                for z = 2, sizeZ - 1 do
+                    local sum = 0
+                    local count = 0
+                    
+                    for dx = -1, 1 do
+                        for dy = -1, 1 do
+                            for dz = -1, 1 do
+                                sum = sum + occupancy[x+dx][y+dy][z+dz]
+                                count = count + 1
+                            end
+                        end
+                    end
+                    
+                    newOccupancy[x][y][z] = sum / count
+                end
+            end
+        end
+        
+        terrain:WriteVoxels(region, 4, materials, newOccupancy)
+        
+    elseif tool == "Paint" then
+        -- Pintar material
+        terrain:ReplaceMaterial(region, 4, Enum.Material.Grass, material)
+        terrain:ReplaceMaterial(region, 4, Enum.Material.Sand, material)
+        terrain:ReplaceMaterial(region, 4, Enum.Material.Rock, material)
+        terrain:ReplaceMaterial(region, 4, Enum.Material.Ground, material)
+        
+    elseif tool == "Add" then
+        -- Adicionar terreno esférico
+        if TerrainData.BrushShape == "Sphere" then
+            terrain:FillBall(position, size, material)
+        elseif TerrainData.BrushShape == "Square" then
+            terrain:FillBlock(CFrame.new(position), Vector3.new(size * 2, size * 2, size * 2), material)
+        else
+            terrain:FillCylinder(CFrame.new(position), size * 2, size, material)
+        end
+        
+    elseif tool == "Subtract" then
+        -- Remover terreno
+        if TerrainData.BrushShape == "Sphere" then
+            terrain:FillBall(position, size, Enum.Material.Air)
+        elseif TerrainData.BrushShape == "Square" then
+            terrain:FillBlock(CFrame.new(position), Vector3.new(size * 2, size * 2, size * 2), Enum.Material.Air)
+        else
+            terrain:FillCylinder(CFrame.new(position), size * 2, size, Enum.Material.Air)
+        end
+        
+    elseif tool == "Sea Level" then
+        -- Definir nível do mar
+        local waterRegion = Region3.new(
+            Vector3.new(position.X - 500, position.Y - 50, position.Z - 500),
+            Vector3.new(position.X + 500, position.Y, position.Z + 500)
+        ):ExpandToGrid(4)
+        
+        terrain:FillRegion(waterRegion, 4, Enum.Material.Water)
+        
+    elseif tool == "Erode" then
+        -- Erosão natural
+        local materials, occupancy = terrain:ReadVoxels(region, 4)
+        local sizeX, sizeY, sizeZ = materials.Size.X, materials.Size.Y, materials.Size.Z
+        
+        for x = 1, sizeX do
+            for z = 1, sizeZ do
+                for y = sizeY, 1, -1 do
+                    if materials[x][y][z] ~= Enum.Material.Air then
+                        -- Simular erosão
+                        local erosionChance = math.random() * strength
+                        if erosionChance > 0.7 then
+                            occupancy[x][y][z] = math.max(0, occupancy[x][y][z] - 0.2)
+                            if occupancy[x][y][z] <= 0 then
+                                materials[x][y][z] = Enum.Material.Air
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        terrain:WriteVoxels(region, 4, materials, occupancy)
+        
+    elseif tool == "Grow" then
+        -- Crescer vegetação (mudar para LeafyGrass)
+        terrain:ReplaceMaterial(region, 4, Enum.Material.Grass, Enum.Material.LeafyGrass)
+    end
+end
+
+-- Iniciar edição
+function TerrainEditor:StartEditing()
+    self.IsEditing = true
+    self:CreateBrushIndicator()
+    
+    -- Loop de atualização do indicador
+    self.EditConnection = RunService.RenderStepped:Connect(function()
+        local pos = self:GetMousePosition()
+        if pos and self.BrushIndicator then
+            self.BrushIndicator.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+        end
+    end)
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🖌️ Modo Edição", "Clique/toque para editar o terreno!", 2)
+    end
+end
+
+-- Parar edição
+function TerrainEditor:StopEditing()
+    self.IsEditing = false
+    
+    if self.BrushIndicator then
+        self.BrushIndicator:Destroy()
+        self.BrushIndicator = nil
+    end
+    
+    if self.EditConnection then
+        self.EditConnection:Disconnect()
+        self.EditConnection = nil
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- GERADOR DE TERRENO PROCEDURAL
+-- ═══════════════════════════════════════════════════════════════
+
+local TerrainGenerator = {}
+
+-- Função de ruído Perlin simplificada
+function TerrainGenerator:Noise2D(x, z, seed, scale)
+    seed = seed or 12345
+    scale = scale or 100
+    
+    local noiseVal = math.noise(x / scale + seed, z / scale + seed)
+    return noiseVal
+end
+
+-- Gerar terreno procedural
+function TerrainGenerator:GenerateTerrain(options)
+    options = options or {}
+    
+    local width = options.width or 200
+    local depth = options.depth or 200
+    local baseHeight = options.baseHeight or 20
+    local amplitude = options.amplitude or TerrainData.Amplitude or 50
+    local seed = options.seed or TerrainData.Seed or math.random(1, 9999)
+    local scale = options.scale or TerrainData.NoiseScale or 100
+    local style = options.style or TerrainData.CurrentStyle
+    
+    -- Limpar terreno anterior
+    terrain:Clear()
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🌍 Gerando...", "Criando terreno " .. style .. "...\nAguarde...", 5)
+    end
+    
+    -- Gerar terreno em chunks para não travar
+    local chunkSize = 20
+    local totalChunks = math.ceil(width / chunkSize) * math.ceil(depth / chunkSize)
+    local currentChunk = 0
+    
+    for cx = -width/2, width/2, chunkSize do
+        for cz = -depth/2, depth/2, chunkSize do
+            currentChunk = currentChunk + 1
+            
+            local chunkData = {}
+            
+            for x = cx, math.min(cx + chunkSize, width/2) do
+                for z = cz, math.min(cz + chunkSize, depth/2) do
+                    -- Calcular altura usando múltiplas oitavas de ruído
+                    local height = baseHeight
+                    
+                    -- Oitava 1 - Montanhas grandes
+                    height = height + self:Noise2D(x, z, seed, scale) * amplitude
+                    
+                    -- Oitava 2 - Detalhes médios
+                    height = height + self:Noise2D(x, z, seed + 1000, scale / 2) * (amplitude / 2)
+                    
+                    -- Oitava 3 - Detalhes pequenos
+                    height = height + self:Noise2D(x, z, seed + 2000, scale / 4) * (amplitude / 4)
+                    
+                    height = math.max(4, height)
+                    
+                    -- Determinar material baseado na altura e estilo
+                    local material = Enum.Material.Grass
+                    
+                    if style == "Ultra Realistic" or style == "Stylized" then
+                        if height > baseHeight + amplitude * 0.7 then
+                            material = Enum.Material.Snow
+                        elseif height > baseHeight + amplitude * 0.5 then
+                            material = Enum.Material.Rock
+                        elseif height > baseHeight + amplitude * 0.2 then
+                            material = Enum.Material.Grass
+                        elseif height < baseHeight - amplitude * 0.3 then
+                            material = Enum.Material.Sand
+                        else
+                            material = Enum.Material.Grass
+                        end
+                    elseif style == "Desert" then
+                        if height > baseHeight + amplitude * 0.6 then
+                            material = Enum.Material.Sandstone
+                        else
+                            material = Enum.Material.Sand
+                        end
+                    elseif style == "Arctic" then
+                        if height > baseHeight + amplitude * 0.3 then
+                            material = Enum.Material.Glacier
+                        else
+                            material = Enum.Material.Snow
+                        end
+                    elseif style == "Volcanic" then
+                        if height > baseHeight + amplitude * 0.5 then
+                            material = Enum.Material.CrackedLava
+                        else
+                            material = Enum.Material.Basalt
+                        end
+                    elseif style == "Tropical" then
+                        if height > baseHeight + amplitude * 0.5 then
+                            material = Enum.Material.Rock
+                        elseif height < baseHeight - amplitude * 0.2 then
+                            material = Enum.Material.Sand
+                        else
+                            material = Enum.Material.LeafyGrass
+                        end
+                    elseif style == "Fantasy" then
+                        local colorNoise = self:Noise2D(x, z, seed + 5000, 30)
+                        if colorNoise > 0.3 then
+                            material = Enum.Material.Grass
+                        elseif colorNoise > 0 then
+                            material = Enum.Material.Slate
+                        else
+                            material = Enum.Material.Limestone
+                        end
+                    elseif style == "Sci-Fi" then
+                        material = Enum.Material.Metal
+                        if height < baseHeight then
+                            material = Enum.Material.Concrete
+                        end
+                    elseif style == "Low Poly" then
+                        -- Quantizar altura para efeito low poly
+                        height = math.floor(height / 8) * 8
+                        material = Enum.Material.SmoothPlastic
+                    end
+                    
+                    -- Preencher coluna de terreno
+                    for y = 0, height do
+                        local currentMat = material
+                        
+                        -- Camadas subterrâneas
+                        if y < height - 4 then
+                            currentMat = Enum.Material.Rock
+                        elseif y < height - 2 then
+                            currentMat = Enum.Material.Ground
+                        end
+                        
+                        table.insert(chunkData, {
+                            pos = Vector3.new(x * 4, y * 4, z * 4),
+                            mat = currentMat
+                        })
+                    end
+                end
+            end
+            
+            -- Aplicar chunk
+            for _, data in ipairs(chunkData) do
+                terrain:FillBlock(CFrame.new(data.pos), Vector3.new(4, 4, 4), data.mat)
+            end
+            
+            -- Yield para não travar
+            if currentChunk % 5 == 0 then
+                task.wait()
+            end
+        end
+    end
+    
+    -- Adicionar água se necessário
+    if TerrainData.WaterLevel and TerrainData.WaterLevel > 0 then
+        local waterRegion = Region3.new(
+            Vector3.new(-width * 2, 0, -depth * 2),
+            Vector3.new(width * 2, TerrainData.WaterLevel * 4, depth * 2)
+        ):ExpandToGrid(4)
+        
+        terrain:FillRegion(waterRegion, 4, Enum.Material.Water)
+    end
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("✅ Terreno Criado!", style .. " gerado com sucesso!\nSeed: " .. seed, 3)
+    end
+end
+
+-- Gerar terreno flat
+function TerrainGenerator:GenerateFlat(size, height, material)
+    terrain:Clear()
+    
+    terrain:FillBlock(
+        CFrame.new(0, height * 2, 0),
+        Vector3.new(size, height * 4, size),
+        material or Enum.Material.Grass
+    )
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("✅ Terreno Plano", "Terreno flat gerado!", 2)
+    end
+end
+
+-- Gerar ilha
+function TerrainGenerator:GenerateIsland(radius, maxHeight)
+    terrain:Clear()
+    
+    radius = radius or 100
+    maxHeight = maxHeight or 40
+    
+    local seed = TerrainData.Seed or math.random(1, 9999)
+    
+    for x = -radius, radius do
+        for z = -radius, radius do
+            local dist = math.sqrt(x^2 + z^2)
+            
+            if dist <= radius then
+                local falloff = 1 - (dist / radius)^2
+                local noise = self:Noise2D(x, z, seed, 50)
+                local height = falloff * maxHeight * (0.5 + noise * 0.5)
+                
+                height = math.max(2, height)
+                
+                local material = Enum.Material.Grass
+                if height > maxHeight * 0.7 then
+                    material = Enum.Material.Rock
+                elseif dist > radius * 0.85 then
+                    material = Enum.Material.Sand
+                end
+                
+                for y = 0, height do
+                    terrain:FillBlock(CFrame.new(x * 4, y * 4, z * 4), Vector3.new(4, 4, 4), material)
+                end
+            end
+        end
+        
+        if x % 10 == 0 then task.wait() end
+    end
+    
+    -- Água ao redor
+    local waterRegion = Region3.new(
+        Vector3.new(-radius * 4 - 200, -20, -radius * 4 - 200),
+        Vector3.new(radius * 4 + 200, 8, radius * 4 + 200)
+    ):ExpandToGrid(4)
+    
+    terrain:FillRegion(waterRegion, 4, Enum.Material.Water)
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🏝️ Ilha Criada!", "Ilha tropical gerada!", 3)
+    end
+end
+
+-- Exportar sistemas
+_G.TerrainEditor = TerrainEditor
+_G.TerrainGenerator = TerrainGenerator
+
+-- Input para edição
+local editing = false
+local mouse = player:GetMouse()
+
+mouse.Button1Down:Connect(function()
+    if TerrainEditor.IsEditing then
+        editing = true
+    end
+end)
+
+mouse.Button1Up:Connect(function()
+    editing = false
+end)
+
+RunService.RenderStepped:Connect(function()
+    if editing and TerrainEditor.IsEditing then
+        local pos = TerrainEditor:GetMousePosition()
+        if pos then
+            TerrainEditor:ApplyBrush(pos)
+        end
+    end
+end)
+
+print("🌑 Mortal Terrain Editor - Parte 3 Carregada (Editor e Gerador)")
+
+-- 🌑☠️ MORTAL DARKNESS TERRAIN EDITOR V1 ☠️🌑
+-- Parte 4 - Painel de Geração Rápida + Sistema de Estilos Completo
+-- Para Studio Lite + Delta Executor
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TerrainGui = playerGui:WaitForChild("MortalTerrainGUI")
+local mainFrame = _G.TerrainMainFrame
+local TerrainData = _G.TerrainData
+local Colors = _G.TerrainColors
+local TerrainGenerator = _G.TerrainGenerator
+
+local terrain = Workspace:WaitForChild("Terrain")
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local function CreateCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+local function CreateGradient(parent, color1, color2, rotation)
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, color1),
+        ColorSequenceKeypoint.new(1, color2)
+    })
+    gradient.Rotation = rotation or 45
+    gradient.Parent = parent
+    return gradient
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA COMPLETO DE ESTILOS
+-- ═══════════════════════════════════════════════════════════════
+
+local StyleSystem = {}
+
+StyleSystem.Styles = {
+    ["Ultra Realistic"] = {
+        icon = "🌍",
+        description = "Terreno ultra realista com física e texturas 4K",
+        materials = {
+            high = Enum.Material.Snow,
+            mid_high = Enum.Material.Rock,
+            mid = Enum.Material.Grass,
+            low = Enum.Material.Ground,
+            water_edge = Enum.Material.Sand
+        },
+        atmosphere = {
+            Density = 0.3,
+            Offset = 0.1,
+            Color = Color3.fromRGB(180, 200, 220),
+            Decay = Color3.fromRGB(90, 100, 120),
+            Glare = 0.5,
+            Haze = 1
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(80, 90, 100),
+            Brightness = 2,
+            ColorShift_Bottom = Color3.fromRGB(50, 60, 80),
+            ColorShift_Top = Color3.fromRGB(180, 200, 230),
+            OutdoorAmbient = Color3.fromRGB(100, 110, 120),
+            ClockTime = 14,
+            GeographicLatitude = 40
+        },
+        wind = Vector3.new(5, 0, 3),
+        waterColor = Color3.fromRGB(30, 100, 150),
+        waterTransparency = 0.7
+    },
+    
+    ["Medieval"] = {
+        icon = "🏰",
+        description = "Atmosfera medieval com castelos e florestas densas",
+        materials = {
+            high = Enum.Material.Rock,
+            mid_high = Enum.Material.Slate,
+            mid = Enum.Material.Grass,
+            low = Enum.Material.Ground,
+            water_edge = Enum.Material.Mud
+        },
+        atmosphere = {
+            Density = 0.5,
+            Offset = 0.2,
+            Color = Color3.fromRGB(150, 140, 130),
+            Decay = Color3.fromRGB(80, 70, 60),
+            Glare = 0.2,
+            Haze = 2
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(60, 55, 50),
+            Brightness = 1.5,
+            ColorShift_Bottom = Color3.fromRGB(40, 35, 30),
+            ColorShift_Top = Color3.fromRGB(140, 130, 120),
+            OutdoorAmbient = Color3.fromRGB(80, 75, 70),
+            ClockTime = 16,
+            GeographicLatitude = 50
+        },
+        wind = Vector3.new(3, 0, 2),
+        waterColor = Color3.fromRGB(40, 60, 50),
+        waterTransparency = 0.5
+    },
+    
+    ["Anime/Stylized"] = {
+        icon = "🎨",
+        description = "Estilo anime colorido e vibrante",
+        materials = {
+            high = Enum.Material.SmoothPlastic,
+            mid_high = Enum.Material.SmoothPlastic,
+            mid = Enum.Material.SmoothPlastic,
+            low = Enum.Material.SmoothPlastic,
+            water_edge = Enum.Material.SmoothPlastic
+        },
+        atmosphere = {
+            Density = 0.1,
+            Offset = 0,
+            Color = Color3.fromRGB(255, 200, 220),
+            Decay = Color3.fromRGB(200, 150, 180),
+            Glare = 1,
+            Haze = 0.5
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(150, 140, 160),
+            Brightness = 3,
+            ColorShift_Bottom = Color3.fromRGB(180, 150, 200),
+            ColorShift_Top = Color3.fromRGB(200, 220, 255),
+            OutdoorAmbient = Color3.fromRGB(180, 170, 190),
+            ClockTime = 12,
+            GeographicLatitude = 30
+        },
+        wind = Vector3.new(2, 0, 1),
+        waterColor = Color3.fromRGB(100, 180, 255),
+        waterTransparency = 0.9,
+        customColors = {
+            high = Color3.fromRGB(255, 200, 220),
+            mid = Color3.fromRGB(150, 255, 180),
+            low = Color3.fromRGB(255, 230, 150)
+        }
+    },
+    
+    ["Sci-Fi"] = {
+        icon = "🚀",
+        description = "Ambiente futurista com tecnologia avançada",
+        materials = {
+            high = Enum.Material.Metal,
+            mid_high = Enum.Material.DiamondPlate,
+            mid = Enum.Material.Concrete,
+            low = Enum.Material.Metal,
+            water_edge = Enum.Material.Neon
+        },
+        atmosphere = {
+            Density = 0.2,
+            Offset = 0.3,
+            Color = Color3.fromRGB(50, 100, 150),
+            Decay = Color3.fromRGB(20, 40, 80),
+            Glare = 2,
+            Haze = 0
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(30, 50, 80),
+            Brightness = 1,
+            ColorShift_Bottom = Color3.fromRGB(0, 50, 100),
+            ColorShift_Top = Color3.fromRGB(50, 100, 200),
+            OutdoorAmbient = Color3.fromRGB(40, 60, 100),
+            ClockTime = 0,
+            GeographicLatitude = 0
+        },
+        wind = Vector3.new(0, 0, 0),
+        waterColor = Color3.fromRGB(0, 200, 255),
+        waterTransparency = 0.3
+    },
+    
+    ["Fantasy"] = {
+        icon = "🧙",
+        description = "Mundo mágico com cores místicas",
+        materials = {
+            high = Enum.Material.Glacier,
+            mid_high = Enum.Material.Slate,
+            mid = Enum.Material.Grass,
+            low = Enum.Material.Limestone,
+            water_edge = Enum.Material.Sand
+        },
+        atmosphere = {
+            Density = 0.4,
+            Offset = 0.15,
+            Color = Color3.fromRGB(180, 150, 220),
+            Decay = Color3.fromRGB(100, 80, 150),
+            Glare = 0.8,
+            Haze = 1.5
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(100, 80, 130),
+            Brightness = 2,
+            ColorShift_Bottom = Color3.fromRGB(80, 50, 120),
+            ColorShift_Top = Color3.fromRGB(180, 150, 220),
+            OutdoorAmbient = Color3.fromRGB(120, 100, 150),
+            ClockTime = 18,
+            GeographicLatitude = 35
+        },
+        wind = Vector3.new(4, 1, 3),
+        waterColor = Color3.fromRGB(100, 50, 200),
+        waterTransparency = 0.6
+    },
+    
+    ["Desert"] = {
+        icon = "🏜️",
+        description = "Deserto árido com dunas e oásis",
+        materials = {
+            high = Enum.Material.Sandstone,
+            mid_high = Enum.Material.Sandstone,
+            mid = Enum.Material.Sand,
+            low = Enum.Material.Sand,
+            water_edge = Enum.Material.Ground
+        },
+        atmosphere = {
+            Density = 0.15,
+            Offset = 0.4,
+            Color = Color3.fromRGB(255, 220, 180),
+            Decay = Color3.fromRGB(200, 150, 100),
+            Glare = 3,
+            Haze = 2
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(150, 130, 100),
+            Brightness = 3.5,
+            ColorShift_Bottom = Color3.fromRGB(200, 150, 100),
+            ColorShift_Top = Color3.fromRGB(255, 230, 180),
+            OutdoorAmbient = Color3.fromRGB(180, 160, 130),
+            ClockTime = 13,
+            GeographicLatitude = 25
+        },
+        wind = Vector3.new(8, 0, 5),
+        waterColor = Color3.fromRGB(50, 150, 200),
+        waterTransparency = 0.8
+    },
+    
+    ["Arctic"] = {
+        icon = "❄️",
+        description = "Paisagem gelada com neve e gelo",
+        materials = {
+            high = Enum.Material.Glacier,
+            mid_high = Enum.Material.Ice,
+            mid = Enum.Material.Snow,
+            low = Enum.Material.Snow,
+            water_edge = Enum.Material.Ice
+        },
+        atmosphere = {
+            Density = 0.6,
+            Offset = 0.1,
+            Color = Color3.fromRGB(220, 230, 255),
+            Decay = Color3.fromRGB(180, 200, 230),
+            Glare = 1.5,
+            Haze = 3
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(180, 190, 210),
+            Brightness = 2.5,
+            ColorShift_Bottom = Color3.fromRGB(150, 170, 200),
+            ColorShift_Top = Color3.fromRGB(220, 230, 255),
+            OutdoorAmbient = Color3.fromRGB(190, 200, 220),
+            ClockTime = 11,
+            GeographicLatitude = 70
+        },
+        wind = Vector3.new(10, 2, 8),
+        waterColor = Color3.fromRGB(150, 200, 255),
+        waterTransparency = 0.4
+    },
+    
+    ["Volcanic"] = {
+        icon = "🌋",
+        description = "Ambiente vulcânico com lava e cinzas",
+        materials = {
+            high = Enum.Material.CrackedLava,
+            mid_high = Enum.Material.CrackedLava,
+            mid = Enum.Material.Basalt,
+            low = Enum.Material.Basalt,
+            water_edge = Enum.Material.CrackedLava
+        },
+        atmosphere = {
+            Density = 0.8,
+            Offset = 0.3,
+            Color = Color3.fromRGB(100, 50, 30),
+            Decay = Color3.fromRGB(50, 20, 10),
+            Glare = 0.3,
+            Haze = 4
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(80, 40, 20),
+            Brightness = 1,
+            ColorShift_Bottom = Color3.fromRGB(150, 50, 0),
+            ColorShift_Top = Color3.fromRGB(100, 40, 20),
+            OutdoorAmbient = Color3.fromRGB(60, 30, 15),
+            ClockTime = 20,
+            GeographicLatitude = 20
+        },
+        wind = Vector3.new(3, 5, 2),
+        waterColor = Color3.fromRGB(255, 100, 0),
+        waterTransparency = 0.2,
+        isLava = true
+    },
+    
+    ["Tropical"] = {
+        icon = "🌴",
+        description = "Paraíso tropical com praias e palmeiras",
+        materials = {
+            high = Enum.Material.Rock,
+            mid_high = Enum.Material.Grass,
+            mid = Enum.Material.LeafyGrass,
+            low = Enum.Material.LeafyGrass,
+            water_edge = Enum.Material.Sand
+        },
+        atmosphere = {
+            Density = 0.25,
+            Offset = 0.05,
+            Color = Color3.fromRGB(200, 230, 255),
+            Decay = Color3.fromRGB(150, 200, 230),
+            Glare = 1,
+            Haze = 0.8
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(120, 140, 130),
+            Brightness = 2.8,
+            ColorShift_Bottom = Color3.fromRGB(100, 150, 130),
+            ColorShift_Top = Color3.fromRGB(180, 220, 255),
+            OutdoorAmbient = Color3.fromRGB(140, 160, 150),
+            ClockTime = 15,
+            GeographicLatitude = 10
+        },
+        wind = Vector3.new(6, 0, 4),
+        waterColor = Color3.fromRGB(30, 180, 220),
+        waterTransparency = 0.85
+    },
+    
+    ["Cyberpunk"] = {
+        icon = "🌃",
+        description = "Cidade cyberpunk com neons e tecnologia",
+        materials = {
+            high = Enum.Material.Neon,
+            mid_high = Enum.Material.Metal,
+            mid = Enum.Material.Concrete,
+            low = Enum.Material.Asphalt,
+            water_edge = Enum.Material.Glass
+        },
+        atmosphere = {
+            Density = 0.7,
+            Offset = 0.4,
+            Color = Color3.fromRGB(80, 20, 100),
+            Decay = Color3.fromRGB(40, 10, 60),
+            Glare = 0.5,
+            Haze = 3
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(50, 20, 80),
+            Brightness = 0.5,
+            ColorShift_Bottom = Color3.fromRGB(100, 0, 150),
+            ColorShift_Top = Color3.fromRGB(0, 150, 200),
+            OutdoorAmbient = Color3.fromRGB(30, 10, 50),
+            ClockTime = 22,
+            GeographicLatitude = 40
+        },
+        wind = Vector3.new(1, 0, 1),
+        waterColor = Color3.fromRGB(0, 255, 200),
+        waterTransparency = 0.3
+    },
+    
+    ["Horror"] = {
+        icon = "💀",
+        description = "Ambiente sombrio e aterrorizante",
+        materials = {
+            high = Enum.Material.Slate,
+            mid_high = Enum.Material.Slate,
+            mid = Enum.Material.Ground,
+            low = Enum.Material.Mud,
+            water_edge = Enum.Material.Mud
+        },
+        atmosphere = {
+            Density = 0.9,
+            Offset = 0.5,
+            Color = Color3.fromRGB(30, 30, 40),
+            Decay = Color3.fromRGB(10, 10, 15),
+            Glare = 0,
+            Haze = 5
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(20, 20, 25),
+            Brightness = 0.3,
+            ColorShift_Bottom = Color3.fromRGB(10, 10, 15),
+            ColorShift_Top = Color3.fromRGB(40, 35, 50),
+            OutdoorAmbient = Color3.fromRGB(15, 15, 20),
+            ClockTime = 2,
+            GeographicLatitude = 60
+        },
+        wind = Vector3.new(2, 1, 3),
+        waterColor = Color3.fromRGB(20, 30, 25),
+        waterTransparency = 0.2
+    },
+    
+    ["Low Poly"] = {
+        icon = "🔷",
+        description = "Estilo low poly minimalista",
+        materials = {
+            high = Enum.Material.SmoothPlastic,
+            mid_high = Enum.Material.SmoothPlastic,
+            mid = Enum.Material.SmoothPlastic,
+            low = Enum.Material.SmoothPlastic,
+            water_edge = Enum.Material.SmoothPlastic
+        },
+        atmosphere = {
+            Density = 0,
+            Offset = 0,
+            Color = Color3.fromRGB(200, 220, 255),
+            Decay = Color3.fromRGB(180, 200, 230),
+            Glare = 0,
+            Haze = 0
+        },
+        lighting = {
+            Ambient = Color3.fromRGB(150, 160, 180),
+            Brightness = 2,
+            ColorShift_Bottom = Color3.fromRGB(130, 140, 160),
+            ColorShift_Top = Color3.fromRGB(200, 210, 230),
+            OutdoorAmbient = Color3.fromRGB(170, 180, 200),
+            ClockTime = 14,
+            GeographicLatitude = 45
+        },
+        wind = Vector3.new(0, 0, 0),
+        waterColor = Color3.fromRGB(80, 150, 255),
+        waterTransparency = 0.7,
+        quantizeHeight = true
+    }
+}
+
+-- Aplicar estilo completo
+function StyleSystem:ApplyStyle(styleName)
+    local style = self.Styles[styleName]
+    if not style then
+        warn("Estilo não encontrado: " .. styleName)
+        return
+    end
+    
+    TerrainData.CurrentStyle = styleName
+    TerrainData.CurrentStyleData = style
+    
+    -- Aplicar atmosfera
+    local atmosphere = Lighting:FindFirstChild("Atmosphere")
+    if not atmosphere then
+        atmosphere = Instance.new("Atmosphere")
+        atmosphere.Parent = Lighting
+    end
+    
+    for prop, value in pairs(style.atmosphere) do
+        atmosphere[prop] = value
+    end
+    
+    -- Aplicar lighting
+    for prop, value in pairs(style.lighting) do
+        pcall(function()
+            Lighting[prop] = value
+        end)
+    end
+    
+    -- Aplicar vento
+    Workspace.GlobalWind = style.wind
+    
+    -- Configurar água
+    terrain.WaterColor = style.waterColor
+    terrain.WaterTransparency = style.waterTransparency
+    
+    -- Efeitos especiais baseados no estilo
+    if styleName == "Cyberpunk" or styleName == "Sci-Fi" then
+        local bloom = Lighting:FindFirstChild("Bloom") or Instance.new("BloomEffect")
+        bloom.Name = "Bloom"
+        bloom.Intensity = 1
+        bloom.Size = 30
+        bloom.Threshold = 0.8
+        bloom.Parent = Lighting
+    end
+    
+    if styleName == "Horror" then
+        local colorCorrection = Lighting:FindFirstChild("ColorCorrection") or Instance.new("ColorCorrectionEffect")
+        colorCorrection.Name = "ColorCorrection"
+        colorCorrection.Saturation = -0.5
+        colorCorrection.Contrast = 0.3
+        colorCorrection.TintColor = Color3.fromRGB(200, 180, 200)
+        colorCorrection.Parent = Lighting
+    end
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification(
+            style.icon .. " Estilo Aplicado",
+            styleName .. "\n" .. style.description,
+            3
+        )
+    end
+    
+    return style
+end
+
+-- Obter materiais do estilo atual
+function StyleSystem:GetMaterialForHeight(normalizedHeight)
+    local style = TerrainData.CurrentStyleData
+    if not style then
+        style = self.Styles["Ultra Realistic"]
+    end
+    
+    if normalizedHeight > 0.8 then
+        return style.materials.high
+    elseif normalizedHeight > 0.6 then
+        return style.materials.mid_high
+    elseif normalizedHeight > 0.3 then
+        return style.materials.mid
+    elseif normalizedHeight > 0.1 then
+        return style.materials.low
+    else
+        return style.materials.water_edge
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- PAINEL DE GERAÇÃO RÁPIDA
+-- ═══════════════════════════════════════════════════════════════
+
+local quickGenPanel = Instance.new("Frame")
+quickGenPanel.Name = "QuickGenPanel"
+quickGenPanel.Size = UDim2.new(1, -20, 0, 100)
+quickGenPanel.Position = UDim2.new(0, 10, 1, -110)
+quickGenPanel.BackgroundColor3 = Colors.Secondary
+quickGenPanel.BorderSizePixel = 0
+quickGenPanel.ZIndex = 21
+quickGenPanel.Parent = mainFrame
+CreateCorner(quickGenPanel, 12)
+
+local quickGenTitle = Instance.new("TextLabel")
+quickGenTitle.Size = UDim2.new(1, 0, 0, 25)
+quickGenTitle.BackgroundColor3 = Colors.Tertiary
+quickGenTitle.Text = "⚡ Geração Rápida"
+quickGenTitle.TextColor3 = Colors.Gold
+quickGenTitle.TextSize = 12
+quickGenTitle.Font = Enum.Font.GothamBlack
+quickGenTitle.ZIndex = 22
+quickGenTitle.Parent = quickGenPanel
+CreateCorner(quickGenTitle, 12)
+
+local quickGenScroll = Instance.new("ScrollingFrame")
+quickGenScroll.Size = UDim2.new(1, -10, 1, -30)
+quickGenScroll.Position = UDim2.new(0, 5, 0, 28)
+quickGenScroll.BackgroundTransparency = 1
+quickGenScroll.ScrollBarThickness = 0
+quickGenScroll.ZIndex = 22
+quickGenScroll.ScrollingDirection = Enum.ScrollingDirection.X
+quickGenScroll.CanvasSize = UDim2.new(0, 1200, 0, 0)
+quickGenScroll.Parent = quickGenPanel
+
+local quickGenLayout = Instance.new("UIListLayout")
+quickGenLayout.FillDirection = Enum.FillDirection.Horizontal
+quickGenLayout.SortOrder = Enum.SortOrder.LayoutOrder
+quickGenLayout.Padding = UDim.new(0, 8)
+quickGenLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+quickGenLayout.Parent = quickGenScroll
+
+-- Presets de geração rápida
+local quickPresets = {
+    {name = "Flat", icon = "⬜", desc = "Terreno plano", action = function()
+        TerrainGenerator:GenerateFlat(500, 10, TerrainData.CurrentMaterial)
+        StyleSystem:ApplyStyle(TerrainData.CurrentStyle)
+    end},
+    {name = "Hills", icon = "🏔️", desc = "Colinas suaves", action = function()
+        TerrainData.Amplitude = 30
+        TerrainGenerator:GenerateTerrain({amplitude = 30, scale = 150})
+        StyleSystem:ApplyStyle(TerrainData.CurrentStyle)
+    end},
+    {name = "Mountains", icon = "⛰️", desc = "Montanhas altas", action = function()
+        TerrainData.Amplitude = 100
+        TerrainGenerator:GenerateTerrain({amplitude = 100, scale = 80})
+        StyleSystem:ApplyStyle(TerrainData.CurrentStyle)
+    end},
+    {name = "Island", icon = "🏝️", desc = "Ilha tropical", action = function()
+        TerrainGenerator:GenerateIsland(80, 50)
+        StyleSystem:ApplyStyle("Tropical")
+    end},
+    {name = "Canyon", icon = "🏜️", desc = "Canyon profundo", action = function()
+        TerrainData.Amplitude = 8
+        TerrainGenerator:GenerateTerrain({amplitude = 80, scale = 40})
+        StyleSystem:ApplyStyle("Desert")
+    end},
+    {name = "Volcano", icon = "🌋", desc = "Vulcão ativo", action = function()
+        TerrainGenerator:GenerateIsland(60, 80)
+        StyleSystem:ApplyStyle("Volcanic")
+    end},
+    {name = "Arctic", icon = "❄️", desc = "Paisagem gelada", action = function()
+        TerrainData.Amplitude = 40
+        TerrainGenerator:GenerateTerrain({amplitude = 40, scale = 100})
+        StyleSystem:ApplyStyle("Arctic")
+    end},
+    {name = "Fantasy", icon = "🧙", desc = "Mundo mágico", action = function()
+        TerrainData.Amplitude = 60
+        TerrainGenerator:GenerateTerrain({amplitude = 60, scale = 70})
+        StyleSystem:ApplyStyle("Fantasy")
+    end},
+    {name = "Clear", icon = "🗑️", desc = "Limpar terreno", color = Colors.Red, action = function()
+        terrain:Clear()
+        if _G.ShowMortalNotification then
+            _G.ShowMortalNotification("🗑️ Limpo", "Terreno removido!", 2)
+        end
+    end},
+}
+
+for i, preset in ipairs(quickPresets) do
+    local btn = Instance.new("TextButton")
+    btn.Name = preset.name
+    btn.Size = UDim2.new(0, isMobile and 70 or 90, 0, 55)
+    btn.BackgroundColor3 = preset.color or Colors.Tertiary
+    btn.Text = preset.icon .. "\n" .. preset.name
+    btn.TextColor3 = Colors.Text
+    btn.TextSize = isMobile and 10 or 11
+    btn.Font = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 23
+    btn.LayoutOrder = i
+    btn.Parent = quickGenScroll
+    CreateCorner(btn, 10)
+    
+    btn.MouseButton1Click:Connect(function()
+        if preset.action then
+            preset.action()
+        end
+    end)
+    
+    -- Hover
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {
+            BackgroundColor3 = Colors.Purple
+        }):Play()
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {
+            BackgroundColor3 = preset.color or Colors.Tertiary
+        }):Play()
+    end)
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- GRID DE ESTILOS
+-- ═══════════════════════════════════════════════════════════════
+
+local stylesPanel = Instance.new("Frame")
+stylesPanel.Name = "StylesPanel"
+stylesPanel.Size = UDim2.new(0, isMobile and 160 or 250, 0, isMobile and 200 or 280)
+stylesPanel.Position = UDim2.new(0, isMobile and 260 or 510, 0, 85)
+stylesPanel.BackgroundColor3 = Colors.Secondary
+stylesPanel.BorderSizePixel = 0
+stylesPanel.ZIndex = 21
+stylesPanel.Visible = not isMobile
+stylesPanel.Parent = mainFrame
+CreateCorner(stylesPanel, 12)
+
+local stylesTitle = Instance.new("TextLabel")
+stylesTitle.Size = UDim2.new(1, 0, 0, 28)
+stylesTitle.BackgroundColor3 = Colors.AccentDark
+stylesTitle.Text = "🎨 Estilos de Mundo"
+stylesTitle.TextColor3 = Colors.Gold
+stylesTitle.TextSize = 11
+stylesTitle.Font = Enum.Font.GothamBlack
+stylesTitle.ZIndex = 22
+stylesTitle.Parent = stylesPanel
+CreateCorner(stylesTitle, 12)
+
+local stylesScroll = Instance.new("ScrollingFrame")
+stylesScroll.Size = UDim2.new(1, -10, 1, -35)
+stylesScroll.Position = UDim2.new(0, 5, 0, 32)
+stylesScroll.BackgroundTransparency = 1
+stylesScroll.ScrollBarThickness = 3
+stylesScroll.ScrollBarImageColor3 = Colors.Purple
+stylesScroll.ZIndex = 22
+stylesScroll.CanvasSize = UDim2.new(0, 0, 0, 500)
+stylesScroll.Parent = stylesPanel
+
+local stylesGrid = Instance.new("UIGridLayout")
+stylesGrid.CellSize = UDim2.new(0, isMobile and 65 or 70, 0, isMobile and 50 or 55)
+stylesGrid.CellPadding = UDim2.new(0, 5, 0, 5)
+stylesGrid.SortOrder = Enum.SortOrder.LayoutOrder
+stylesGrid.Parent = stylesScroll
+
+local selectedStyleBtn = nil
+local styleIndex = 0
+
+for styleName, styleData in pairs(StyleSystem.Styles) do
+    styleIndex = styleIndex + 1
+    
+    local btn = Instance.new("TextButton")
+    btn.Name = styleName
+    btn.Size = UDim2.new(0, 70, 0, 55)
+    btn.BackgroundColor3 = Colors.Tertiary
+    btn.Text = styleData.icon .. "\n" .. string.sub(styleName, 1, 8)
+    btn.TextColor3 = Colors.Text
+    btn.TextSize = 9
+    btn.Font = Enum.Font.GothamBold
+    btn.TextWrapped = true
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 23
+    btn.LayoutOrder = styleIndex
+    btn.Parent = stylesScroll
+    CreateCorner(btn, 8)
+    
+    btn.MouseButton1Click:Connect(function()
+        StyleSystem:ApplyStyle(styleName)
+        
+        if selectedStyleBtn then
+            local prevStroke = selectedStyleBtn:FindFirstChild("SelectStroke")
+            if prevStroke then prevStroke:Destroy() end
+        end
+        
+        selectedStyleBtn = btn
+        local stroke = Instance.new("UIStroke")
+        stroke.Name = "SelectStroke"
+        stroke.Color = Colors.Gold
+        stroke.Thickness = 2
+        stroke.Parent = btn
+    end)
+end
+
+-- Atualizar canvas
+stylesGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    stylesScroll.CanvasSize = UDim2.new(0, 0, 0, stylesGrid.AbsoluteContentSize.Y + 10)
+end)
+
+-- Exportar
+_G.StyleSystem = StyleSystem
+
+print("🌑 Mortal Terrain Editor - Parte 4 Carregada (Estilos e Geração Rápida)")
+
+-- 🌑☠️ MORTAL DARKNESS TERRAIN EDITOR V1 ☠️🌑
+-- Parte 5 - Sistema de Água Realista, Atmosfera e Efeitos
+-- Para Studio Lite + Delta Executor
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TerrainGui = playerGui:WaitForChild("MortalTerrainGUI")
+local mainFrame = _G.TerrainMainFrame
+local TerrainData = _G.TerrainData
+local Colors = _G.TerrainColors
+local StyleSystem = _G.StyleSystem
+
+local terrain = Workspace:WaitForChild("Terrain")
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local function CreateCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE ÁGUA REALISTA
+-- ═══════════════════════════════════════════════════════════════
+
+local WaterSystem = {}
+WaterSystem.WaterLevel = 0
+WaterSystem.WaveEnabled = true
+WaterSystem.WaveIntensity = 0.5
+WaterSystem.SwimmingEnabled = true
+
+-- Criar efeitos de onda
+function WaterSystem:CreateWaveEffect()
+    local waveFolder = Workspace:FindFirstChild("WaterWaves")
+    if not waveFolder then
+        waveFolder = Instance.new("Folder")
+        waveFolder.Name = "WaterWaves"
+        waveFolder.Parent = Workspace
+    end
+    
+    return waveFolder
+end
+
+-- Simular ondas na água
+function WaterSystem:StartWaveSimulation()
+    if self.WaveConnection then
+        self.WaveConnection:Disconnect()
+    end
+    
+    local time = 0
+    
+    self.WaveConnection = RunService.Heartbeat:Connect(function(dt)
+        if not self.WaveEnabled then return end
+        
+        time = time + dt
+        
+        -- Atualizar cor da água baseado no tempo
+        local waveColor = Color3.new(
+            terrain.WaterColor.R + math.sin(time) * 0.02,
+            terrain.WaterColor.G + math.cos(time * 0.5) * 0.02,
+            terrain.WaterColor.B + math.sin(time * 0.8) * 0.02
+        )
+        
+        -- Não atualizar diretamente (pode causar lag)
+    end)
+end
+
+-- Sistema de natação
+function WaterSystem:SetupSwimming()
+    if self.SwimConnection then
+        self.SwimConnection:Disconnect()
+    end
+    
+    self.SwimConnection = RunService.Heartbeat:Connect(function()
+        if not self.SwimmingEnabled then return end
+        
+        local character = player.Character
+        if not character then return end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChild("Humanoid")
+        
+        if rootPart and humanoid then
+            local waterLevel = self.WaterLevel
+            local playerY = rootPart.Position.Y
+            
+            -- Verificar se está na água
+            if playerY < waterLevel then
+                -- Aplicar física de natação
+                humanoid.WalkSpeed = 10 -- Mais lento na água
+                
+                -- Efeito de bolhas
+                if math.random() > 0.95 then
+                    local bubble = Instance.new("Part")
+                    bubble.Shape = Enum.PartType.Ball
+                    bubble.Size = Vector3.new(0.3, 0.3, 0.3)
+                    bubble.Position = rootPart.Position + Vector3.new(math.random(-1, 1), -1, math.random(-1, 1))
+                    bubble.Anchored = false
+                    bubble.CanCollide = false
+                    bubble.Transparency = 0.5
+                    bubble.Color = Color3.new(1, 1, 1)
+                    bubble.Material = Enum.Material.Glass
+                    bubble.Parent = Workspace
+                    
+                    local bodyVelocity = Instance.new("BodyVelocity")
+                    bodyVelocity.Velocity = Vector3.new(0, 5, 0)
+                    bodyVelocity.MaxForce = Vector3.new(0, 1000, 0)
+                    bodyVelocity.Parent = bubble
+                    
+                    Debris:AddItem(bubble, 2)
+                end
+            else
+                humanoid.WalkSpeed = 16
+            end
+        end
+    end)
+end
+
+-- Definir nível da água
+function WaterSystem:SetWaterLevel(level)
+    self.WaterLevel = level
+    TerrainData.WaterLevel = level
+    
+    if level > 0 then
+        -- Criar região de água
+        local size = 1000
+        local waterRegion = Region3.new(
+            Vector3.new(-size, 0, -size),
+            Vector3.new(size, level, size)
+        ):ExpandToGrid(4)
+        
+        terrain:FillRegion(waterRegion, 4, Enum.Material.Water)
+        
+        if _G.ShowMortalNotification then
+            _G.ShowMortalNotification("🌊 Nível da Água", "Definido para " .. level .. " studs", 2)
+        end
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE ATMOSFERA
+-- ═══════════════════════════════════════════════════════════════
+
+local AtmosphereSystem = {}
+
+-- Criar todos os efeitos de lighting
+function AtmosphereSystem:SetupEffects()
+    -- Atmosphere
+    local atmosphere = Lighting:FindFirstChild("Atmosphere")
+    if not atmosphere then
+        atmosphere = Instance.new("Atmosphere")
+        atmosphere.Parent = Lighting
+    end
+    
+    -- Sky
+    local sky = Lighting:FindFirstChild("Sky")
+    if not sky then
+        sky = Instance.new("Sky")
+        sky.Parent = Lighting
+    end
+    
+    -- Bloom
+    local bloom = Lighting:FindFirstChild("Bloom")
+    if not bloom then
+        bloom = Instance.new("BloomEffect")
+        bloom.Name = "Bloom"
+        bloom.Parent = Lighting
+    end
+    
+    -- Color Correction
+    local colorCorrection = Lighting:FindFirstChild("ColorCorrection")
+    if not colorCorrection then
+        colorCorrection = Instance.new("ColorCorrectionEffect")
+        colorCorrection.Name = "ColorCorrection"
+        colorCorrection.Parent = Lighting
+    end
+    
+    -- Sun Rays
+    local sunRays = Lighting:FindFirstChild("SunRays")
+    if not sunRays then
+        sunRays = Instance.new("SunRaysEffect")
+        sunRays.Name = "SunRays"
+        sunRays.Parent = Lighting
+    end
+    
+    -- Depth of Field
+    local dof = Lighting:FindFirstChild("DepthOfField")
+    if not dof then
+        dof = Instance.new("DepthOfFieldEffect")
+        dof.Name = "DepthOfField"
+        dof.Parent = Lighting
+    end
+    
+    return {
+        Atmosphere = atmosphere,
+        Sky = sky,
+        Bloom = bloom,
+        ColorCorrection = colorCorrection,
+        SunRays = sunRays,
+        DepthOfField = dof
+    }
+end
+
+-- Presets de atmosfera
+AtmosphereSystem.Presets = {
+    ["Clear Day"] = {
+        atmosphere = {Density = 0.2, Offset = 0.1, Color = Color3.fromRGB(200, 220, 255)},
+        lighting = {Brightness = 2.5, ClockTime = 14, Ambient = Color3.fromRGB(150, 160, 180)},
+        bloom = {Intensity = 0.5, Size = 24, Threshold = 0.9},
+        sunRays = {Intensity = 0.1, Spread = 0.5}
+    },
+    ["Sunset"] = {
+        atmosphere = {Density = 0.4, Offset = 0.2, Color = Color3.fromRGB(255, 180, 100)},
+        lighting = {Brightness = 1.5, ClockTime = 18.5, Ambient = Color3.fromRGB(180, 120, 80)},
+        bloom = {Intensity = 1, Size = 40, Threshold = 0.7},
+        sunRays = {Intensity = 0.3, Spread = 1}
+    },
+    ["Night"] = {
+        atmosphere = {Density = 0.5, Offset = 0.3, Color = Color3.fromRGB(30, 40, 80)},
+        lighting = {Brightness = 0.2, ClockTime = 2, Ambient = Color3.fromRGB(20, 25, 50)},
+        bloom = {Intensity = 0.3, Size = 20, Threshold = 0.95},
+        sunRays = {Intensity = 0, Spread = 0}
+    },
+    ["Stormy"] = {
+        atmosphere = {Density = 0.8, Offset = 0.4, Color = Color3.fromRGB(60, 70, 80)},
+        lighting = {Brightness = 0.8, ClockTime = 15, Ambient = Color3.fromRGB(50, 55, 65)},
+        bloom = {Intensity = 0.2, Size = 15, Threshold = 0.85},
+        sunRays = {Intensity = 0, Spread = 0}
+    },
+    ["Foggy"] = {
+        atmosphere = {Density = 0.9, Offset = 0.5, Color = Color3.fromRGB(200, 200, 210)},
+        lighting = {Brightness = 1.2, ClockTime = 10, Ambient = Color3.fromRGB(150, 150, 160)},
+        bloom = {Intensity = 0.8, Size = 50, Threshold = 0.6},
+        sunRays = {Intensity = 0.05, Spread = 1}
+    },
+    ["Dawn"] = {
+        atmosphere = {Density = 0.35, Offset = 0.15, Color = Color3.fromRGB(255, 200, 150)},
+        lighting = {Brightness = 1.8, ClockTime = 6.5, Ambient = Color3.fromRGB(150, 130, 120)},
+        bloom = {Intensity = 0.7, Size = 35, Threshold = 0.75},
+        sunRays = {Intensity = 0.2, Spread = 0.8}
+    }
+}
+
+-- Aplicar preset de atmosfera
+function AtmosphereSystem:ApplyPreset(presetName)
+    local preset = self.Presets[presetName]
+    if not preset then return end
+    
+    local effects = self:SetupEffects()
+    
+    -- Aplicar atmosfera
+    for prop, value in pairs(preset.atmosphere) do
+        effects.Atmosphere[prop] = value
+    end
+    
+    -- Aplicar lighting
+    for prop, value in pairs(preset.lighting) do
+        pcall(function()
+            Lighting[prop] = value
+        end)
+    end
+    
+    -- Aplicar bloom
+    for prop, value in pairs(preset.bloom) do
+        effects.Bloom[prop] = value
+    end
+    
+    -- Aplicar sun rays
+    for prop, value in pairs(preset.sunRays) do
+        effects.SunRays[prop] = value
+    end
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🌤️ Atmosfera", presetName .. " aplicada!", 2)
+    end
+end
+
+-- Ciclo dia/noite
+function AtmosphereSystem:StartDayNightCycle(speed)
+    if self.DayNightConnection then
+        self.DayNightConnection:Disconnect()
+    end
+    
+    speed = speed or 1 -- 1 = tempo real, 60 = 1 minuto = 1 hora
+    
+    self.DayNightConnection = RunService.Heartbeat:Connect(function(dt)
+        local currentTime = Lighting.ClockTime
+        currentTime = currentTime + (dt * speed / 60)
+        
+        if currentTime >= 24 then
+            currentTime = 0
+        end
+        
+        Lighting.ClockTime = currentTime
+    end)
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🌅 Ciclo Dia/Noite", "Ativado! Velocidade: " .. speed .. "x", 2)
+    end
+end
+
+function AtmosphereSystem:StopDayNightCycle()
+    if self.DayNightConnection then
+        self.DayNightConnection:Disconnect()
+        self.DayNightConnection = nil
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE VENTO E PARTÍCULAS
+-- ═══════════════════════════════════════════════════════════════
+
+local WindSystem = {}
+WindSystem.Intensity = 5
+WindSystem.Direction = Vector3.new(1, 0, 0.5)
+
+function WindSystem:SetWind(intensity, direction)
+    self.Intensity = intensity or 5
+    self.Direction = direction or Vector3.new(1, 0, 0.5)
+    
+    Workspace.GlobalWind = self.Direction.Unit * self.Intensity
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("💨 Vento", "Intensidade: " .. self.Intensity, 2)
+    end
+end
+
+-- Criar partículas de ambiente
+function WindSystem:CreateAmbientParticles(particleType)
+    local particleFolder = Workspace:FindFirstChild("AmbientParticles")
+    if not particleFolder then
+        particleFolder = Instance.new("Folder")
+        particleFolder.Name = "AmbientParticles"
+        particleFolder.Parent = Workspace
+    end
+    
+    -- Limpar partículas anteriores
+    particleFolder:ClearAllChildren()
+    
+    local emitter = Instance.new("Part")
+    emitter.Name = "ParticleEmitter"
+    emitter.Size = Vector3.new(500, 1, 500)
+    emitter.Position = Vector3.new(0, 100, 0)
+    emitter.Anchored = true
+    emitter.CanCollide = false
+    emitter.Transparency = 1
+    emitter.Parent = particleFolder
+    
+    local particles = Instance.new("ParticleEmitter")
+    particles.Parent = emitter
+    
+    if particleType == "Rain" then
+        particles.Texture = "rbxassetid://241876428"
+        particles.Rate = 500
+        particles.Lifetime = NumberRange.new(2, 3)
+        particles.Speed = NumberRange.new(50, 80)
+        particles.SpreadAngle = Vector2.new(10, 10)
+        particles.EmissionDirection = Enum.NormalId.Bottom
+        particles.Size = NumberSequence.new(0.1)
+        particles.Color = ColorSequence.new(Color3.fromRGB(200, 200, 255))
+        particles.Transparency = NumberSequence.new(0.3)
+        
+    elseif particleType == "Snow" then
+        particles.Texture = "rbxassetid://243098098"
+        particles.Rate = 200
+        particles.Lifetime = NumberRange.new(5, 8)
+        particles.Speed = NumberRange.new(5, 15)
+        particles.SpreadAngle = Vector2.new(30, 30)
+        particles.EmissionDirection = Enum.NormalId.Bottom
+        particles.Size = NumberSequence.new(0.2, 0.5)
+        particles.Color = ColorSequence.new(Color3.new(1, 1, 1))
+        particles.Transparency = NumberSequence.new(0.2)
+        particles.RotSpeed = NumberRange.new(-30, 30)
+        
+    elseif particleType == "Leaves" then
+        particles.Texture = "rbxassetid://1084981484"
+        particles.Rate = 30
+        particles.Lifetime = NumberRange.new(4, 7)
+        particles.Speed = NumberRange.new(3, 8)
+        particles.SpreadAngle = Vector2.new(60, 60)
+        particles.Size = NumberSequence.new(0.3, 0.8)
+        particles.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 180, 80)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 150, 50)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 100, 50))
+        })
+        particles.RotSpeed = NumberRange.new(-60, 60)
+        particles.Rotation = NumberRange.new(0, 360)
+        
+    elseif particleType == "Ash" then
+        particles.Texture = "rbxassetid://243660364"
+        particles.Rate = 100
+        particles.Lifetime = NumberRange.new(3, 6)
+        particles.Speed = NumberRange.new(2, 5)
+        particles.SpreadAngle = Vector2.new(90, 90)
+        particles.Size = NumberSequence.new(0.1, 0.3)
+        particles.Color = ColorSequence.new(Color3.fromRGB(50, 50, 50))
+        particles.Transparency = NumberSequence.new(0.4, 1)
+        
+    elseif particleType == "Fireflies" then
+        particles.Texture = "rbxassetid://241876428"
+        particles.Rate = 20
+        particles.Lifetime = NumberRange.new(2, 4)
+        particles.Speed = NumberRange.new(1, 3)
+        particles.SpreadAngle = Vector2.new(180, 180)
+        particles.Size = NumberSequence.new(0.1, 0.3, 0.1)
+        particles.Color = ColorSequence.new(Color3.fromRGB(255, 255, 100))
+        particles.LightEmission = 1
+        particles.LightInfluence = 0
+    end
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("✨ Partículas", particleType .. " ativadas!", 2)
+    end
+    
+    return particles
+end
+
+function WindSystem:ClearParticles()
+    local particleFolder = Workspace:FindFirstChild("AmbientParticles")
+    if particleFolder then
+        particleFolder:ClearAllChildren()
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE EFEITOS ESPECIAIS
+-- ═══════════════════════════════════════════════════════════════
+
+local EffectsSystem = {}
+
+-- Criar raio
+function EffectsSystem:CreateLightning(startPos, endPos)
+    local lightning = Instance.new("Part")
+    lightning.Name = "Lightning"
+    lightning.Anchored = true
+    lightning.CanCollide = false
+    lightning.Material = Enum.Material.Neon
+    lightning.Color = Color3.fromRGB(200, 200, 255)
+    
+    local distance = (endPos - startPos).Magnitude
+    lightning.Size = Vector3.new(0.5, 0.5, distance)
+    lightning.CFrame = CFrame.lookAt(startPos, endPos) * CFrame.new(0, 0, -distance/2)
+    lightning.Parent = Workspace
+    
+    -- Flash
+    local originalBrightness = Lighting.Brightness
+    Lighting.Brightness = 5
+    
+    task.delay(0.1, function()
+        Lighting.Brightness = originalBrightness
+        lightning:Destroy()
+    end)
+end
+
+-- Criar explosão de terreno
+function EffectsSystem:CreateTerrainExplosion(position, radius)
+    -- Remover terreno
+    terrain:FillBall(position, radius, Enum.Material.Air)
+    
+    -- Criar partículas de explosão
+    local explosion = Instance.new("Explosion")
+    explosion.Position = position
+    explosion.BlastRadius = radius
+    explosion.BlastPressure = 0 -- Só visual
+    explosion.Parent = Workspace
+    
+    -- Criar destroços
+    for i = 1, 20 do
+        local debris = Instance.new("Part")
+        debris.Size = Vector3.new(math.random(1, 3), math.random(1, 3), math.random(1, 3))
+        debris.Position = position + Vector3.new(
+            math.random(-radius, radius),
+            math.random(0, radius),
+            math.random(-radius, radius)
+        )
+        debris.Color = Color3.fromRGB(100, 80, 60)
+        debris.Material = Enum.Material.Rock
+        debris.Parent = Workspace
+        
+        local velocity = Instance.new("BodyVelocity")
+        velocity.Velocity = Vector3.new(
+            math.random(-30, 30),
+            math.random(20, 50),
+            math.random(-30, 30)
+        )
+        velocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        velocity.Parent = debris
+        
+        Debris:AddItem(debris, 5)
+        
+        task.delay(0.1, function()
+            velocity:Destroy()
+        end)
+    end
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("💥 Explosão", "Terreno destruído!", 2)
+    end
+end
+
+-- Criar terremoto
+function EffectsSystem:CreateEarthquake(intensity, duration)
+    intensity = intensity or 5
+    duration = duration or 3
+    
+    local camera = Workspace.CurrentCamera
+    local originalCFrame = camera.CFrame
+    local startTime = tick()
+    
+    local earthquakeConnection
+    earthquakeConnection = RunService.RenderStepped:Connect(function()
+        local elapsed = tick() - startTime
+        
+        if elapsed >= duration then
+            earthquakeConnection:Disconnect()
+            return
+        end
+        
+        local shake = Vector3.new(
+            math.random(-100, 100) / 100 * intensity,
+            math.random(-50, 50) / 100 * intensity,
+            math.random(-100, 100) / 100 * intensity
+        )
+        
+        camera.CFrame = camera.CFrame * CFrame.new(shake)
+    end)
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🌍 Terremoto!", "Intensidade: " .. intensity, duration)
+    end
+end
+
+-- Exportar sistemas
+_G.WaterSystem = WaterSystem
+_G.AtmosphereSystem = AtmosphereSystem
+_G.WindSystem = WindSystem
+_G.EffectsSystem = EffectsSystem
+
+-- Inicializar sistemas
+AtmosphereSystem:SetupEffects()
+WaterSystem:SetupSwimming()
+WaterSystem:StartWaveSimulation()
+
+print("🌑 Mortal Terrain Editor - Parte 5 Carregada (Água, Atmosfera, Efeitos)")
+
+-- 🌑☠️ MORTAL DARKNESS TERRAIN EDITOR V1 ☠️🌑
+-- Parte 6 - Vegetação, Física e Export
+-- Para Studio Lite + Delta Executor
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Selection = game:GetService("Selection")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local TerrainGui = playerGui:WaitForChild("MortalTerrainGUI")
+local mainFrame = _G.TerrainMainFrame
+local TerrainData = _G.TerrainData
+local Colors = _G.TerrainColors
+local StyleSystem = _G.StyleSystem
+local TerrainEditor = _G.TerrainEditor
+
+local terrain = Workspace:WaitForChild("Terrain")
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local function CreateCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE VEGETAÇÃO
+-- ═══════════════════════════════════════════════════════════════
+
+local VegetationSystem = {}
+VegetationSystem.PlacedObjects = {}
+
+-- Templates de vegetação por estilo
+VegetationSystem.Templates = {
+    ["Ultra Realistic"] = {
+        trees = {
+            {name = "Oak", height = {15, 25}, trunkColor = Color3.fromRGB(80, 50, 30), leafColor = Color3.fromRGB(50, 120, 50)},
+            {name = "Pine", height = {20, 35}, trunkColor = Color3.fromRGB(70, 45, 25), leafColor = Color3.fromRGB(30, 80, 40)},
+            {name = "Birch", height = {12, 20}, trunkColor = Color3.fromRGB(220, 220, 210), leafColor = Color3.fromRGB(100, 180, 80)}
+        },
+        plants = {
+            {name = "Bush", size = {2, 4}, color = Color3.fromRGB(40, 100, 40)},
+            {name = "Flower", size = {0.5, 1}, color = Color3.fromRGB(255, 100, 150)},
+            {name = "Grass", size = {0.3, 0.8}, color = Color3.fromRGB(80, 150, 60)}
+        },
+        rocks = {
+            {name = "Boulder", size = {3, 8}, color = Color3.fromRGB(100, 100, 100)},
+            {name = "Pebble", size = {0.5, 1.5}, color = Color3.fromRGB(120, 110, 100)}
+        }
+    },
+    
+    ["Tropical"] = {
+        trees = {
+            {name = "Palm", height = {15, 25}, trunkColor = Color3.fromRGB(120, 80, 50), leafColor = Color3.fromRGB(50, 150, 50)},
+            {name = "Banana", height = {8, 12}, trunkColor = Color3.fromRGB(100, 130, 60), leafColor = Color3.fromRGB(80, 180, 60)}
+        },
+        plants = {
+            {name = "Fern", size = {1, 3}, color = Color3.fromRGB(60, 140, 60)},
+            {name = "Orchid", size = {0.3, 0.6}, color = Color3.fromRGB(255, 100, 200)}
+        }
+    },
+    
+    ["Desert"] = {
+        trees = {
+            {name = "Cactus", height = {5, 15}, trunkColor = Color3.fromRGB(80, 130, 70), leafColor = Color3.fromRGB(80, 130, 70)}
+        },
+        plants = {
+            {name = "Tumbleweed", size = {1, 2}, color = Color3.fromRGB(180, 150, 100)},
+            {name = "DesertFlower", size = {0.3, 0.5}, color = Color3.fromRGB(255, 200, 100)}
+        },
+        rocks = {
+            {name = "Sandstone", size = {2, 6}, color = Color3.fromRGB(200, 170, 130)}
+        }
+    },
+    
+    ["Arctic"] = {
+        trees = {
+            {name = "FrozenPine", height = {10, 20}, trunkColor = Color3.fromRGB(60, 40, 30), leafColor = Color3.fromRGB(220, 240, 255)}
+        },
+        plants = {},
+        rocks = {
+            {name = "IceRock", size = {2, 8}, color = Color3.fromRGB(180, 220, 255)}
+        }
+    },
+    
+    ["Fantasy"] = {
+        trees = {
+            {name = "GlowTree", height = {15, 30}, trunkColor = Color3.fromRGB(80, 60, 100), leafColor = Color3.fromRGB(150, 100, 255)},
+            {name = "CrystalTree", height = {10, 18}, trunkColor = Color3.fromRGB(100, 150, 200), leafColor = Color3.fromRGB(200, 150, 255)}
+        },
+        plants = {
+            {name = "Mushroom", size = {1, 4}, color = Color3.fromRGB(255, 100, 100), glow = true},
+            {name = "GlowFlower", size = {0.5, 1}, color = Color3.fromRGB(100, 255, 200), glow = true}
+        }
+    },
+    
+    ["Sci-Fi"] = {
+        trees = {
+            {name = "CrystalSpire", height = {10, 25}, trunkColor = Color3.fromRGB(0, 200, 255), leafColor = Color3.fromRGB(0, 150, 255), glow = true}
+        },
+        plants = {
+            {name = "HoloPlant", size = {1, 2}, color = Color3.fromRGB(255, 0, 200), glow = true}
+        }
+    },
+    
+    ["Horror"] = {
+        trees = {
+            {name = "DeadTree", height = {10, 20}, trunkColor = Color3.fromRGB(40, 30, 25), leafColor = nil}
+        },
+        plants = {
+            {name = "DeadBush", size = {1, 2}, color = Color3.fromRGB(60, 50, 40)}
+        }
+    }
+}
+
+-- Criar árvore procedural
+function VegetationSystem:CreateTree(template, position)
+    local treeFolder = Workspace:FindFirstChild("Vegetation")
+    if not treeFolder then
+        treeFolder = Instance.new("Folder")
+        treeFolder.Name = "Vegetation"
+        treeFolder.Parent = Workspace
+    end
+    
+    local height = math.random(template.height[1], template.height[2])
+    local trunkWidth = height / 10
+    
+    local tree = Instance.new("Model")
+    tree.Name = template.name
+    
+    -- Tronco
+    local trunk = Instance.new("Part")
+    trunk.Name = "Trunk"
+    trunk.Size = Vector3.new(trunkWidth, height * 0.6, trunkWidth)
+    trunk.Position = position + Vector3.new(0, height * 0.3, 0)
+    trunk.Anchored = true
+    trunk.Color = template.trunkColor
+    trunk.Material = Enum.Material.Wood
+    trunk.Parent = tree
+    
+    -- Copa (se tiver folhas)
+    if template.leafColor then
+        local canopy = Instance.new("Part")
+        canopy.Name = "Canopy"
+        canopy.Shape = Enum.PartType.Ball
+        canopy.Size = Vector3.new(height * 0.6, height * 0.5, height * 0.6)
+        canopy.Position = position + Vector3.new(0, height * 0.75, 0)
+        canopy.Anchored = true
+        canopy.Color = template.leafColor
+        canopy.Material = Enum.Material.Grass
+        canopy.Parent = tree
+        
+        if template.glow then
+            canopy.Material = Enum.Material.Neon
+        end
+    end
+    
+    tree.Parent = treeFolder
+    tree.PrimaryPart = trunk
+    
+    table.insert(self.PlacedObjects, tree)
+    return tree
+end
+
+-- Criar planta
+function VegetationSystem:CreatePlant(template, position)
+    local vegFolder = Workspace:FindFirstChild("Vegetation")
+    if not vegFolder then
+        vegFolder = Instance.new("Folder")
+        vegFolder.Name = "Vegetation"
+        vegFolder.Parent = Workspace
+    end
+    
+    local size = math.random(template.size[1] * 10, template.size[2] * 10) / 10
+    
+    local plant = Instance.new("Part")
+    plant.Name = template.name
+    plant.Size = Vector3.new(size, size * 1.5, size)
+    plant.Position = position + Vector3.new(0, size * 0.75, 0)
+    plant.Anchored = true
+    plant.Color = template.color
+    plant.Material = template.glow and Enum.Material.Neon or Enum.Material.Grass
+    plant.Parent = vegFolder
+    
+    table.insert(self.PlacedObjects, plant)
+    return plant
+end
+
+-- Criar rocha
+function VegetationSystem:CreateRock(template, position)
+    local vegFolder = Workspace:FindFirstChild("Vegetation")
+    if not vegFolder then
+        vegFolder = Instance.new("Folder")
+        vegFolder.Name = "Vegetation"
+        vegFolder.Parent = Workspace
+    end
+    
+    local size = math.random(template.size[1] * 10, template.size[2] * 10) / 10
+    
+    local rock = Instance.new("Part")
+    rock.Name = template.name
+    rock.Size = Vector3.new(size * 1.2, size, size)
+    rock.Position = position + Vector3.new(0, size * 0.5, 0)
+    rock.Anchored = true
+    rock.Color = template.color
+    rock.Material = Enum.Material.Rock
+    rock.Parent = vegFolder
+    
+    -- Rotação aleatória
+    rock.Orientation = Vector3.new(
+        math.random(-15, 15),
+        math.random(0, 360),
+        math.random(-15, 15)
+    )
+    
+    table.insert(self.PlacedObjects, rock)
+    return rock
+end
+
+-- Espalhar vegetação automaticamente
+function VegetationSystem:ScatterVegetation(options)
+    options = options or {}
+    
+    local style = options.style or TerrainData.CurrentStyle or "Ultra Realistic"
+    local area = options.area or 200
+    local density = options.density or 0.1
+    local treeCount = options.trees or 50
+    local plantCount = options.plants or 100
+    local rockCount = options.rocks or 30
+    
+    local templates = self.Templates[style] or self.Templates["Ultra Realistic"]
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🌿 Gerando Vegetação", "Estilo: " .. style, 3)
+    end
+    
+    -- Criar árvores
+    if templates.trees and #templates.trees > 0 then
+        for i = 1, treeCount do
+            local template = templates.trees[math.random(1, #templates.trees)]
+            local x = math.random(-area, area)
+            local z = math.random(-area, area)
+            
+            -- Raycast para encontrar o chão
+            local ray = Ray.new(Vector3.new(x, 500, z), Vector3.new(0, -1000, 0))
+            local hit, hitPos = Workspace:FindPartOnRay(ray, Workspace:FindFirstChild("Vegetation"))
+            
+            if hit and hit.Name == "Terrain" then
+                self:CreateTree(template, hitPos)
+            end
+            
+            if i % 10 == 0 then task.wait() end
+        end
+    end
+    
+    -- Criar plantas
+    if templates.plants and #templates.plants > 0 then
+        for i = 1, plantCount do
+            local template = templates.plants[math.random(1, #templates.plants)]
+            local x = math.random(-area, area)
+            local z = math.random(-area, area)
+            
+            local ray = Ray.new(Vector3.new(x, 500, z), Vector3.new(0, -1000, 0))
+            local hit, hitPos = Workspace:FindPartOnRay(ray, Workspace:FindFirstChild("Vegetation"))
+            
+            if hit and hit.Name == "Terrain" then
+                self:CreatePlant(template, hitPos)
+            end
+            
+            if i % 20 == 0 then task.wait() end
+        end
+    end
+    
+    -- Criar rochas
+    if templates.rocks and #templates.rocks > 0 then
+        for i = 1, rockCount do
+            local template = templates.rocks[math.random(1, #templates.rocks)]
+            local x = math.random(-area, area)
+            local z = math.random(-area, area)
+            
+            local ray = Ray.new(Vector3.new(x, 500, z), Vector3.new(0, -1000, 0))
+            local hit, hitPos = Workspace:FindPartOnRay(ray, Workspace:FindFirstChild("Vegetation"))
+            
+            if hit and hit.Name == "Terrain" then
+                self:CreateRock(template, hitPos)
+            end
+        end
+    end
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("✅ Vegetação Criada", "Árvores, plantas e rochas adicionadas!", 2)
+    end
+end
+
+-- Limpar vegetação
+function VegetationSystem:ClearVegetation()
+    local vegFolder = Workspace:FindFirstChild("Vegetation")
+    if vegFolder then
+        vegFolder:ClearAllChildren()
+    end
+    self.PlacedObjects = {}
+    
+    if _G.ShowMortalNotification then
+        _G.ShowMortalNotification("🗑️ Limpo", "Vegetação removida!", 2)
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE FÍSICA DE INTERAÇÃO
+-- ═══════════════════════════════════════════════════════════════
+
+local PhysicsSystem = {}
+PhysicsSystem.InteractiveObjects = {}
+PhysicsSystem.DestructibleTerrain = true
+PhysicsSystem.ExplosionDamage = true
+
+-- Configurar física do terreno
+function PhysicsSystem:SetupTerrainPhysics()
+    -- Materiais e suas propriedades físicas
+    self.MaterialProperties = {
+        [Enum.Material.Grass] = {friction = 0.4, density = 1, walkSpeed = 16},
+        [Enum.Material.Sand] = {friction = 0.6, density = 0.8, walkSpeed = 12},
+        [Enum.Material.Rock] = {friction = 0.3, density = 2, walkSpeed = 16},
+        [Enum.Material.Ice] = {friction = 0.05, density = 0.9, walkSpeed = 20},
+        [Enum.Material.Snow] = {friction = 0.5, density = 0.5, walkSpeed = 10},
+        [Enum.Material.Mud] = {friction = 0.8, density = 1.2, walkSpeed = 8},
+        [Enum.Material.Water] = {friction = 0.1, density = 1, walkSpeed = 6},
+        [Enum.Material.CrackedLava] = {friction = 0.4, density = 2, walkSpeed = 14, damage = 10},
+        [Enum.Material.Asphalt] = {friction = 0.3, density = 1.5, walkSpeed = 18},
+        [Enum.Material.Concrete] = {friction = 0.35, density = 1.8, walkSpeed = 17},
+        [Enum.Material.LeafyGrass] = {friction = 0.45, density = 0.9, walkSpeed = 15}
+    }
+end
+
+-- Detectar material sob o jogador e aplicar física
+function PhysicsSystem:StartMaterialDetection()
+    if self.MaterialConnection then
+        self.MaterialConnection:Disconnect()
+    end
+    
+    self.MaterialConnection = RunService.Heartbeat:Connect(function()
+        local character = player.Character
+        if not character then return end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChild("Humanoid")
+        
+        if not rootPart or not humanoid then return end
+        
+        -- Raycast para baixo para detectar material
+        local rayOrigin = rootPart.Position
+        local rayDirection = Vector3.new(0, -10, 0)
+        
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        raycastParams.FilterDescendantsInstances = {character}
+        
+        local result = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+        
+        if result and result.Instance then
+            local material = result.Material
+            local props = self.MaterialProperties[material]
+            
+            if props then
+                -- Aplicar velocidade de caminhada
+                humanoid.WalkSpeed = props.walkSpeed
+                
+                -- Aplicar dano se for lava
+                if props.damage and props.damage > 0 then
+                    humanoid:TakeDamage(props.damage * 0.1) -- Dano por frame
+                end
+            end
+        end
+    end)
+end
+
+-- Criar objeto destrutível
+function PhysicsSystem:MakeDestructible(object, health)
+    health = health or 100
+    
+    local destructData = {
+        Object = object,
+        MaxHealth = health,
+        CurrentHealth = health
+    }
+    
+    table.insert(self.InteractiveObjects, destructData)
+    
+    return destructData
+end
+
+-- Causar dano a terreno (explosão)
+function PhysicsSystem:DamageTerrainAt(position, radius, power)
+    if not self.DestructibleTerrain then return end
+    
+    radius = radius or 10
+    power = power or 1
+    
+    -- Remover terreno
+    terrain:FillBall(position, radius * power, Enum.Material.Air)
+    
+    -- Criar partículas de destroços
+    local debrisCount = math.floor(radius * 2)
+    
+    for i = 1, debrisCount do
+        local debris = Instance.new("Part")
+        debris.Size = Vector3.new(
+            math.random(1, 3),
+            math.random(1, 3),
+            math.random(1, 3)
+        )
+        debris.Position = position + Vector3.new(
+            math.random(-radius, radius),
+            math.random(0, radius),
+            math.random(-radius, radius)
+        )
+        debris.Color = Color3.fromRGB(100, 80, 60)
+        debris.Material = Enum.Material.Rock
+        debris.Parent = Workspace
+        
+        -- Física
+        debris.Velocity = Vector3.new(
+            math.random(-50, 50) * power,
+            math.random(30, 80) * power,
+            math.random(-50, 50) * power
+        )
+        
+        game:GetService("Debris"):AddItem(debris, 5)
+    end
+end
+
+-- Sistema de pegadas
+function PhysicsSystem:EnableFootprints()
+    if self.FootprintConnection then
+        self.FootprintConnection:Disconnect()
+    end
+    
+    local lastFootprintTime = 0
+    local footprintInterval = 0.5
+    
+    self.FootprintConnection = RunService.Heartbeat:Connect(function()
+        local character = player.Character
+        if not character then return end
+        
+        local humanoid = character:FindFirstChild("Humanoid")
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        
+        if not humanoid or not rootPart then return end
+        
+        if humanoid.MoveDirection.Magnitude > 0 and tick() - lastFootprintTime > footprintInterval then
+            lastFootprintTime = tick()
+            
+            -- Criar pegada
+            local footprint = Instance.new("Part")
+            footprint.Size = Vector3.new(0.8, 0.05, 1.2)
+            footprint.Position = rootPart.Position - Vector3.new(0, 3, 0)
+            footprint.Anchored = true
+            footprint.CanCollide = false
+            footprint.Transparency = 0.5
+            footprint.Color = Color3.fromRGB(50, 40, 30)
+            footprint.Material = Enum.Material.SmoothPlastic
+            footprint.Parent = Workspace
+            
+            -- Orientar na direção do movimento
+            footprint.CFrame = CFrame.new(footprint.Position, footprint.Position + humanoid.MoveDirection)
+            
+            -- Fade out
+            TweenService:Create(footprint, TweenInfo.new(5), {
+                Transparency = 1
+            }):Play()
+            
+            game:GetService("Debris"):AddItem(footprint, 5)
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SISTEMA DE EXPORT
+-- ═══════════════════════════════════════════════════════════════
+
+local ExportSystem = {}
+
+-- Gerar código do terreno
+function ExportSystem:GenerateTerrainCode()
+    local code = [[
+-- 🌑☠️ MORTAL DARKNESS TERRAIN - Código Exportado ☠️🌑
+-- Gerado automaticamente pelo Mortal Terrain Editor V1
+
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local terrain = Workspace.Terrain
+
+-- Configurações do Terreno
+local TerrainConfig = {
+    Style = "]] .. (TerrainData.CurrentStyle or "Ultra Realistic") .. [[",
+    Seed = ]] .. (TerrainData.Seed or math.random(1, 9999)) .. [[,
+    WaterLevel = ]] .. (TerrainData.WaterLevel or 0) .. [[,
+    Amplitude = ]] .. (TerrainData.Amplitude or 50) .. [[,
+    NoiseScale = ]] .. (TerrainData.NoiseScale or 100) .. [[
+}
+
+-- Configurações de Lighting
+local LightingConfig = {
+    Brightness = ]] .. Lighting.Brightness .. [[,
+    ClockTime = ]] .. Lighting.ClockTime .. [[,
+    Ambient = Color3.fromRGB(]] .. math.floor(Lighting.Ambient.R * 255) .. [[, ]] .. math.floor(Lighting.Ambient.G * 255) .. [[, ]] .. math.floor(Lighting.Ambient.B * 255) .. [[),
+    OutdoorAmbient = Color3.fromRGB(]] .. math.floor(Lighting.OutdoorAmbient.R * 255) .. [[, ]] .. math.floor(Lighting.OutdoorAmbient.G * 255) .. [[, ]] .. math.floor(Lighting.OutdoorAmbient.B * 255) .. [[)
+}
+
+-- Aplicar Lighting
+for prop, value in pairs(LightingConfig) do
+    pcall(function()
+        Lighting[prop] = value
+    end)
+end
+
+-- Configurar Atmosfera
+local atmosphere = Lighting:FindFirstChild("Atmosphere") or Instance.new("Atmosphere")
+atmosphere.Parent = Lighting
+]]
+    
+    -- Adicionar configurações de atmosfera se existirem
+    local atm = Lighting:FindFirstChild("Atmosphere")
+    if atm then
+        code = code .. [[
+
+atmosphere.Density = ]] .. atm.Density .. [[
+atmosphere.Offset = ]] .. atm.Offset .. [[
+atmosphere.Color = Color3.fromRGB(]] .. math.floor(atm.Color.R * 255) .. [[, ]] .. math.floor(atm.Color.G * 255) .. [[, ]] .. math.floor(atm.Color.B * 255) .. [[)
+atmosphere.Decay = Color3.fromRGB(]] .. math.floor(atm.Decay.R * 255) .. [[, ]] .. math.floor(atm.Decay.G * 255) .. [[, ]] .. math.floor(atm.Decay.B * 255) .. [[)
+atmosphere.Glare = ]] .. atm.Glare .. [[
+atmosphere.Haze = ]] .. atm.Haze .. [[
+]]
+    end
+    
+    -- Adicionar configurações de água
+    code = code .. [[
+
+-- Configurar Água
+terrain.WaterColor = Color3.fromRGB(]] .. math.floor(terrain.WaterColor.R * 255) .. [[, ]] .. math.floor(terrain.WaterColor.G * 255) .. [[, ]] .. math.floor(terrain.WaterColor.B * 255) .. [[)
+terrain.WaterTransparency = ]] .. terrain.WaterTransparency .. [[
+
+-- Configurar Vento
+Workspace.GlobalWind = Vector3.new(]] .. Workspace.GlobalWind.X .. [[, ]] .. Workspace.GlobalWind.Y .. [[, ]] .. Workspace.GlobalWind.Z .. [[)
+
+print("🌑 Terreno carregado com sucesso!")
+]]
+    
+    return code
+end
+
+-- Mostrar diálogo de export
+function ExportSystem:ShowExportDialog()
+    local exportFrame = Instance.new("Frame")
+    exportFrame.Name = "ExportDialog"
+    exportFrame.Size = UDim2.new(0, isMobile and 320 or 550, 0, isMobile and 420 or 500)
+    exportFrame.Position = UDim2.new(0.5, isMobile and -160 or -275, 0.5, isMobile and -210 or -250)
+    exportFrame.BackgroundColor3 = Colors.Background
+    exportFrame.BorderSizePixel = 0
+    exportFrame.ZIndex = 50
+    exportFrame.Parent = TerrainGui
+    CreateCorner(exportFrame, 16)
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Colors.Gold
+    stroke.Thickness = 2
+    stroke.Parent = exportFrame
+    
+    -- Header
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 45)
+    header.BackgroundColor3 = Colors.Secondary
+    header.BorderSizePixel = 0
+    header.ZIndex = 51
+    header.Parent = exportFrame
+    CreateCorner(header, 16)
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 15, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "💾 EXPORTAR TERRENO"
+    title.TextColor3 = Colors.Gold
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBlack
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 52
+    title.Parent = header
+    
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 35, 0, 35)
+    closeBtn.Position = UDim2.new(1, -42, 0.5, -17)
+    closeBtn.BackgroundColor3 = Colors.Red
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Colors.Text
+    closeBtn.TextSize = 16
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.BorderSizePixel = 0
+    closeBtn.ZIndex = 52
+    closeBtn.Parent = header
+    CreateCorner(closeBtn, 8)
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        TweenService:Create(exportFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+        task.wait(0.3)
+        exportFrame:Destroy()
+    end)
+    
+    -- Descrição
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(1, -20, 0, 40)
+    desc.Position = UDim2.new(0, 10, 0, 50)
+    desc.BackgroundTransparency = 1
+    desc.Text = "Copie o código abaixo e cole em um Script para recriar o terreno e suas configurações."
+    desc.TextColor3 = Colors.TextDark
+    desc.TextSize = 12
+    desc.Font = Enum.Font.Gotham
+    desc.TextWrapped = true
+    desc.ZIndex = 51
+    desc.Parent = exportFrame
+    
+    -- Code box
+    local codeScroll = Instance.new("ScrollingFrame")
+    codeScroll.Size = UDim2.new(1, -20, 1, -150)
+    codeScroll.Position = UDim2.new(0, 10, 0, 95)
+    codeScroll.BackgroundColor3 = Colors.Tertiary
+    codeScroll.BorderSizePixel = 0
+    codeScroll.ScrollBarThickness = 4
+    codeScroll.ScrollBarImageColor3 = Colors.Purple
+    codeScroll.ZIndex = 51
+    codeScroll.CanvasSize = UDim2.new(0, 0, 0, 2000)
+    codeScroll.Parent = exportFrame
+    CreateCorner(codeScroll, 8)
+    
+    local codeText = Instance.new("TextBox")
+    codeText.Size = UDim2.new(1, -10, 0, 2000)
+    codeText.Position = UDim2.new(0, 5, 0, 5)
+    codeText.BackgroundTransparency = 1
+    codeText.Text = self:GenerateTerrainCode()
+    codeText.TextColor3 = Colors.Green
+    codeText.TextSize = 10
+    codeText.Font = Enum.Font.Code
+    codeText.TextXAlignment = Enum.TextXAlignment.Left
+    codeText.TextYAlignment = Enum.TextYAlignment.Top
+    codeText.TextWrapped = true
+    codeText.ClearTextOnFocus = false
+    codeText.MultiLine = true
+    codeText.ZIndex = 52
+    codeText.Parent = codeScroll
+    
+    -- Botão Copiar
+    local copyBtn = Instance.new("TextButton")
+    copyBtn.Size = UDim2.new(0.48, 0, 0, 40)
+    copyBtn.Position = UDim2.new(0.01, 10, 1, -50)
+    copyBtn.BackgroundColor3 = Colors.Green
+    copyBtn.Text = "📋 COPIAR CÓDIGO"
+    copyBtn.TextColor3 = Colors.Text
+    copyBtn.TextSize = 14
+    copyBtn.Font = Enum.Font.GothamBold
+    copyBtn.BorderSizePixel = 0
+    copyBtn.ZIndex = 51
+    copyBtn.Parent = exportFrame
+    CreateCorner(copyBtn, 10)
+    
+    copyBtn.MouseButton1Click:Connect(function()
+        if setclipboard then
+            setclipboard(codeText.Text)
+            if _G.ShowMortalNotification then
+                _G.ShowMortalNotification("✅ Copiado!", "Código copiado para a área de transferência!", 2)
+            end
+        else
+            codeText:CaptureFocus()
+            if _G.ShowMortalNotification then
+                _G.ShowMortalNotification("📋 Selecione", "Selecione e copie manualmente (Ctrl+C)", 3)
+            end
+        end
+    end)
+    
+    -- Botão Salvar Vegetação
+    local saveVegBtn = Instance.new("TextButton")
+    saveVegBtn.Size = UDim2.new(0.48, 0, 0, 40)
+    saveVegBtn.Position = UDim2.new(0.51, 0, 1, -50)
+    saveVegBtn.BackgroundColor3 = Colors.Purple
+    saveVegBtn.Text = "🌿 INCLUIR VEGETAÇÃO"
+    saveVegBtn.TextColor3 = Colors.Text
+    saveVegBtn.TextSize = 12
+    saveVegBtn.Font = Enum.Font.GothamBold
+    saveVegBtn.BorderSizePixel = 0
+    saveVegBtn.ZIndex = 51
+    saveVegBtn.Parent = exportFrame
+    CreateCorner(saveVegBtn, 10)
+    
+    saveVegBtn.MouseButton1Click:Connect(function()
+        local vegCode = self:GenerateVegetationCode()
+        codeText.Text = codeText.Text .. "\n\n" .. vegCode
+        
+        if _G.ShowMortalNotification then
+            _G.ShowMortalNotification("🌿 Adicionado", "Código de vegetação incluído!", 2)
+        end
+    end)
+    
+    -- Animação de entrada
+    exportFrame.Size = UDim2.new(0, 0, 0, 0)
+    exportFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    TweenService:Create(exportFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, isMobile and 320 or 550, 0, isMobile and 420 or 500),
+        Position = UDim2.new(0.5, isMobile and -160 or -275, 0.5, isMobile and -210 or -250)
+    }):Play()
+end
+
+-- Gerar código de vegetação
+function ExportSystem:GenerateVegetationCode()
+    local vegFolder = Workspace:FindFirstChild("Vegetation")
+    if not vegFolder then
+        return "-- Nenhuma vegetação para exportar"
+    end
+    
+    local code = [[
+-- 🌿 VEGETAÇÃO EXPORTADA
+
+local vegetation = Instance.new("Folder")
+vegetation.Name = "Vegetation"
+vegetation.Parent = Workspace
+
+local vegData = {
+]]
+    
+    local count = 0
+    for _, obj in ipairs(vegFolder:GetChildren()) do
+        if obj:IsA("Model") or obj:IsA("Part") then
+            count = count + 1
+            if count > 200 then break end -- Limitar para não ficar muito grande
+            
+            local pos = obj:IsA("Model") and obj.PrimaryPart and obj.PrimaryPart.Position or obj.Position
+            local color = obj:IsA("Part") and obj.Color or (obj:FindFirstChild("Trunk") and obj.Trunk.Color or Color3.new(1,1,1))
+            
+            code = code .. string.format(
+                '    {name = "%s", pos = Vector3.new(%.1f, %.1f, %.1f), color = Color3.fromRGB(%d, %d, %d)},\n',
+                obj.Name,
+                pos.X, pos.Y, pos.Z,
+                math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255)
+            )
+        end
+    end
+    
+    code = code .. [[
+}
+
+for _, data in ipairs(vegData) do
+    local part = Instance.new("Part")
+    part.Name = data.name
+    part.Position = data.pos
+    part.Color = data.color
+    part.Anchored = true
+    part.Size = Vector3.new(3, 5, 3)
+    part.Parent = vegetation
+end
+
+print("🌿 Vegetação carregada: " .. #vegData .. " objetos")
+]]
+    
+    return code
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- CONEXÃO DOS BOTÕES DO MENU
+-- ═══════════════════════════════════════════════════════════════
+
+-- Toggle do menu principal
+local toggleBtn = TerrainGui:FindFirstChild("TerrainToggle")
+local menuVisible = false
+
+if toggleBtn then
+    toggleBtn.MouseButton1Click:Connect(function()
+        menuVisible = not menuVisible
+        
+        if menuVisible then
+            mainFrame.Visible = true
+            mainFrame.Size = UDim2.new(0, 0, 0, 0)
+            mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            
+            TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, isMobile and 350 or 950, 0, isMobile and 520 or 600),
+                Position = UDim2.new(0.5, isMobile and -175 or -475, 0.5, isMobile and -260 or -300)
+            }):Play()
+        else
+            TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0)
+            }):Play()
+            task.wait(0.3)
+            mainFrame.Visible = false
+        end
+    end)
+end
+
+-- Adicionar botões extras no painel de ferramentas
+local toolsPanel = mainFrame:FindFirstChild("ToolsPanel")
+if toolsPanel then
+    local toolsScroll = toolsPanel:FindFirstChildOfClass("ScrollingFrame")
+    if toolsScroll then
+        -- Botão de Vegetação
+        local vegBtn = Instance.new("TextButton")
+        vegBtn.Name = "Vegetation"
+        vegBtn.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
+        vegBtn.BackgroundColor3 = Colors.TerrainGreen
+        vegBtn.Text = "🌿" .. (isMobile and "" or " Vegetação")
+        vegBtn.TextColor3 = Colors.Text
+        vegBtn.TextSize = isMobile and 14 or 12
+        vegBtn.Font = Enum.Font.GothamBold
+        vegBtn.BorderSizePixel = 0
+        vegBtn.ZIndex = 23
+        vegBtn.LayoutOrder = 20
+        vegBtn.Parent = toolsScroll
+        CreateCorner(vegBtn, 8)
+        
+        vegBtn.MouseButton1Click:Connect(function()
+            VegetationSystem:ScatterVegetation({
+                style = TerrainData.CurrentStyle,
+                trees = 30,
+                plants = 60,
+                rocks = 20
+            })
+        end)
+        
+        -- Botão Limpar Vegetação
+        local clearVegBtn = Instance.new("TextButton")
+        clearVegBtn.Name = "ClearVeg"
+        clearVegBtn.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
+        clearVegBtn.BackgroundColor3 = Colors.Red
+        clearVegBtn.Text = "🗑️" .. (isMobile and "" or " Limpar Veg")
+        clearVegBtn.TextColor3 = Colors.Text
+        clearVegBtn.TextSize = isMobile and 14 or 12
+        clearVegBtn.Font = Enum.Font.GothamBold
+        clearVegBtn.BorderSizePixel = 0
+        clearVegBtn.ZIndex = 23
+        clearVegBtn.LayoutOrder = 21
+        clearVegBtn.Parent = toolsScroll
+        CreateCorner(clearVegBtn, 8)
+        
+        clearVegBtn.MouseButton1Click:Connect(function()
+            VegetationSystem:ClearVegetation()
+        end)
+        
+        -- Botão Exportar
+        local exportBtn = Instance.new("TextButton")
+        exportBtn.Name = "Export"
+        exportBtn.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
+        exportBtn.BackgroundColor3 = Colors.Gold
+        exportBtn.Text = "💾" .. (isMobile and "" or " Exportar")
+        exportBtn.TextColor3 = Colors.Background
+        exportBtn.TextSize = isMobile and 14 or 12
+        exportBtn.Font = Enum.Font.GothamBold
+        exportBtn.BorderSizePixel = 0
+        exportBtn.ZIndex = 23
+        exportBtn.LayoutOrder = 22
+        exportBtn.Parent = toolsScroll
+        CreateCorner(exportBtn, 8)
+        
+        exportBtn.MouseButton1Click:Connect(function()
+            ExportSystem:ShowExportDialog()
+        end)
+        
+        -- Botão Editar Terreno
+        local editBtn = Instance.new("TextButton")
+        editBtn.Name = "EditMode"
+        editBtn.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
+        editBtn.BackgroundColor3 = Colors.Blue
+        editBtn.Text = "✏️" .. (isMobile and "" or " Modo Edição")
+        editBtn.TextColor3 = Colors.Text
+        editBtn.TextSize = isMobile and 14 or 12
+        editBtn.Font = Enum.Font.GothamBold
+        editBtn.BorderSizePixel = 0
+        editBtn.ZIndex = 23
+        editBtn.LayoutOrder = 23
+        editBtn.Parent = toolsScroll
+        CreateCorner(editBtn, 8)
+        
+        local editMode = false
+        editBtn.MouseButton1Click:Connect(function()
+            editMode = not editMode
+            
+            if editMode then
+                TerrainEditor:StartEditing()
+                editBtn.BackgroundColor3 = Colors.Green
+                editBtn.Text = "✅" .. (isMobile and "" or " Editando...")
+            else
+                TerrainEditor:StopEditing()
+                editBtn.BackgroundColor3 = Colors.Blue
+                editBtn.Text = "✏️" .. (isMobile and "" or " Modo Edição")
+            end
+        end)
+    end
+end
+
+-- Exportar sistemas
+_G.VegetationSystem = VegetationSystem
+_G.PhysicsSystem = PhysicsSystem
+_G.ExportSystem = ExportSystem
+
+-- Inicializar sistemas
+PhysicsSystem:SetupTerrainPhysics()
+PhysicsSystem:StartMaterialDetection()
+
+-- Conectar ao menu principal de plugins (se existir)
+if _G.MortalPluginsLoaded then
+    _G.LoadMortalTerrainEditor = function()
+        menuVisible = true
+        mainFrame.Visible = true
+        mainFrame.Size = UDim2.new(0, 0, 0, 0)
+        mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+        
+        TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+            Size = UDim2.new(0, isMobile and 350 or 950, 0, isMobile and 520 or 600),
+            Position = UDim2.new(0.5, isMobile and -175 or -475, 0.5, isMobile and -260 or -300)
+        }):Play()
+    end
+end
+
+-- Notificação de carregamento
+task.wait(0.5)
+if _G.ShowMortalNotification then
+    _G.ShowMortalNotification(
+        "👑☠️MORTAL DARKNESS TERRAIN EDITOR☠️👑",
+        "Carregado com Sucesso!\n\nCrie mundos incríveis com qualidade AAA⚡",
+        5
+    )
+end
+
+print("═══════════════════════════════════════════════════════════")
+print("🌑☠️ MORTAL DARKNESS TERRAIN EDITOR V1 - COMPLETO ☠️🌑")
+print("═══════════════════════════════════════════════════════════")
+print("✅ Interface carregada")
+print("✅ Sistema de estilos (12 estilos)")
+print("✅ Editor de terreno")
+print("✅ Gerador procedural")
+print("✅ Sistema de água")
+print("✅ Sistema de atmosfera")
+print("✅ Sistema de vento e partículas")
+print("✅ Sistema de vegetação")
+print("✅ Sistema de física")
+print("✅ Sistema de export")
+print("═══════════════════════════════════════════════════════════")
